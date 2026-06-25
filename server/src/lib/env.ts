@@ -55,6 +55,12 @@ export const env = {
 
   maxUploadBytes: Number(process.env.MAX_UPLOAD_BYTES ?? 100 * 1024 * 1024),
   uploadDir: process.env.UPLOAD_DIR ?? './uploads',
+
+  /** Secure session cookie only when the app is served over HTTPS. */
+  sessionCookieSecure:
+    process.env.SESSION_COOKIE_SECURE !== undefined
+      ? process.env.SESSION_COOKIE_SECURE.toLowerCase() === 'true'
+      : required('APP_URL', 'http://localhost:5173').startsWith('https://'),
 } as const;
 
 export function s3Enabled(): boolean {
