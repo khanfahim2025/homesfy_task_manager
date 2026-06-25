@@ -11,6 +11,7 @@ import {
 } from '../lib/format';
 import { UserMultiSelect } from './UserMultiSelect';
 import { PendingAttachmentPicker } from './AttachmentPicker';
+import { DueDateTimeInput } from './DueDateTimeInput';
 
 interface Props {
   initial?: Partial<TaskInput>;
@@ -81,7 +82,7 @@ export function TaskCreateForm({
     try {
       const payload: TaskInput = {
         ...form,
-        dueDate: form.dueDate ? new Date(form.dueDate).toISOString() : null,
+        dueDate: form.dueDate || null,
         assigneeIds: form.assigneeIds ?? [],
         observerIds: form.observerIds ?? [],
         participantIds: form.participantIds ?? [],
@@ -152,18 +153,6 @@ export function TaskCreateForm({
           </div>
         </div>
 
-        <div className="card space-y-3 p-4 sm:p-6">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Attachments</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Optional — add now or upload later on the task page</p>
-          </div>
-          <PendingAttachmentPicker
-            files={pendingFiles}
-            onChange={setPendingFiles}
-            disabled={saving}
-          />
-        </div>
-
         {showWebsiteDetails && (
           <fieldset className="card space-y-4 p-4 sm:p-6">
             <legend className="text-sm font-semibold text-slate-700">Website details</legend>
@@ -174,7 +163,7 @@ export function TaskCreateForm({
                   className="input"
                   value={form.domainName}
                   onChange={(e) => set('domainName', e.target.value)}
-                  placeholder="example.com (auto-creates a project)"
+                  placeholder="www.example.com (auto-creates a project)"
                 />
               </div>
               <div>
@@ -224,6 +213,18 @@ export function TaskCreateForm({
           </fieldset>
         )}
 
+        <div className="card space-y-3 p-4 sm:p-6">
+          <div>
+            <h2 className="text-sm font-semibold text-slate-900">Attachments</h2>
+            <p className="mt-0.5 text-xs text-slate-500">Optional — add now or upload later on the task page</p>
+          </div>
+          <PendingAttachmentPicker
+            files={pendingFiles}
+            onChange={setPendingFiles}
+            disabled={saving}
+          />
+        </div>
+
         <div className="flex flex-wrap justify-end gap-3 pb-2">
           <button type="button" className="btn-secondary" onClick={onCancel}>
             Cancel
@@ -270,12 +271,10 @@ export function TaskCreateForm({
             </select>
           </div>
           <div>
-            <label className="label">Due date</label>
-            <input
-              type="date"
-              className="input"
-              value={form.dueDate ? String(form.dueDate).slice(0, 10) : ''}
-              onChange={(e) => set('dueDate', e.target.value)}
+            <label className="label">Due date & time</label>
+            <DueDateTimeInput
+              value={form.dueDate || null}
+              onChange={(iso) => set('dueDate', iso ?? '')}
             />
           </div>
         </div>

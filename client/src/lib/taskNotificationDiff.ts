@@ -77,10 +77,9 @@ function wasNewlyConnected(prev: TaskWatchSnapshot, next: TaskWatchSnapshot, use
 
 export const DUE_SOON_MS = 5 * 60 * 1000;
 
-/** End of the due date's local day (date picker stores midday UTC-safe). */
+/** Actual due datetime (supports date + time). */
 export function getEffectiveDueTimeMs(dueDate: string): number {
-  const d = new Date(dueDate);
-  return new Date(d.getFullYear(), d.getMonth(), d.getDate(), 23, 59, 59, 999).getTime();
+  return new Date(dueDate).getTime();
 }
 
 export function isTaskDueSoon(task: Task, now = Date.now()): boolean {

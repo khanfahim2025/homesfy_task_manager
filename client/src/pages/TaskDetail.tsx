@@ -14,6 +14,7 @@ import { PriorityBadge, StatusBadge } from '../components/Badges';
 import { AttachmentThumbnailGrid } from '../components/AttachmentThumbnailGrid';
 import { AttachmentUploadZone } from '../components/AttachmentPicker';
 import { DueDateEditor } from '../components/DueDateEditor';
+import { DomainLink } from '../components/DomainLink';
 import { CodeSnippet } from '../components/CodeSnippet';
 import { CopyButton } from '../components/CopyButton';
 import { UserChipList, UserMultiSelect } from '../components/UserMultiSelect';
@@ -181,7 +182,11 @@ export function TaskDetail() {
             <div className="card min-w-0 p-4 sm:p-6">
               <h2 className="mb-4 text-lg font-semibold text-slate-900">Website details</h2>
               <dl className="grid min-w-0 gap-4 sm:grid-cols-2">
-                {task.domainName && <Field label="Domain">{task.domainName}</Field>}
+                {task.domainName && (
+                  <Field label="Domain">
+                    <DomainLink domain={task.domainName} />
+                  </Field>
+                )}
                 {task.templateUrl && (
                   <Field label="Template URL">
                     <a className="break-all text-[#2fc6f6] hover:underline" href={task.templateUrl} target="_blank" rel="noreferrer">

@@ -119,6 +119,69 @@ export function formatDate(value: string | null | undefined): string {
   });
 }
 
+/** Due date + time in 12-hour format. */
+export function formatDueDateTime(value: string | null | undefined): string {
+  if (!value) return '—';
+  return new Date(value).toLocaleString(undefined, {
+    year: 'numeric',
+    month: 'short',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    hour12: true,
+  });
+}
+
+export interface DueDateTimeParts {
+  date: string;
+  hour12: string;
+  minute: string;
+  meridiem: 'AM' | 'PM';
+}
+
+export function parseDueDateTime(iso: string | null | undefined): DueDateTimeParts {
+  const fallback: DueDateTimeParts = { date: '', hour12: '6', minute: '00', meridiem: 'PM' };
+  if (!iso) return fallback;
+
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return fallback;
+
+  let hours = d.getHours();
+  const meridiem: 'AM' | 'PM' = hours >= 12 ? 'PM' : 'AM';
+  hours = hours % 12;
+  if (hours === 0) hours = 12;
+
+  return {
+    date: toDateInputValue(iso),
+    hour12: String(hours),
+    minute: String(d.getMinutes()).padStart(2, '0'),
+    meridiem,
+  };
+}
+
+function to24Hour(hour12: number, meridiem: 'AM' | 'PM'): number {
+  if (meridiem === 'AM') return hour12 === 12 ? 0 : hour12;
+  return hour12 === 12 ? 12 : hour12 + 12;
+}
+
+export function dueDateTimeToIso(parts: DueDateTimeParts): string | null {
+  if (!parts.date) return null;
+  const hour = to24Hour(parseInt(parts.hour12, 10) || 12, parts.meridiem);
+  const minute = parseInt(parts.minute, 10) || 0;
+  const local = new Date(
+    `${parts.date}T${String(hour).padStart(2, '0')}:${String(minute).padStart(2, '0')}:00`
+  );
+  return local.toISOString();
+}
+
+/** Turn domain or URL text into a clickable https link. */
+export function domainToUrl(domain: string): string {
+  const trimmed = domain.trim();
+  if (!trimmed) return '#';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
 export function formatDateTime(value: string | null | undefined): string {
   if (!value) return '—';
   return new Date(value).toLocaleString(undefined, {
@@ -135,9 +198,9 @@ export function toDateInputValue(value: string | null | undefined): string {
   return value.slice(0, 10);
 }
 
-/** Parse date input value to ISO string (midday local time avoids timezone shift). */
+/** Parse date-only input to ISO at 12:00 PM local. */
 export function dateInputToIso(value: string): string {
-  return new Date(`${value}T12:00:00`).toISOString();
+  return dueDateTimeToIso({ date: value, hour12: '12', minute: '00', meridiem: 'PM' })!;
 }
 
 export function isOverdue(task: { dueDate: string | null; status: TaskStatus }): boolean {

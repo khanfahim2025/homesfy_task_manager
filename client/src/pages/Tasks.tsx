@@ -20,6 +20,7 @@ import {
 } from '../lib/format';
 import { PriorityBadge } from '../components/Badges';
 import { DueDateEditor } from '../components/DueDateEditor';
+import { DomainLink } from '../components/DomainLink';
 
 function TaskCard({ task }: { task: Task }) {
   const people = task.assignees?.length
@@ -38,7 +39,14 @@ function TaskCard({ task }: { task: Task }) {
       </div>
 
       {task.domainName && (
-        <p className="mt-1.5 truncate text-xs font-medium text-[#2fc6f6]">{task.domainName}</p>
+        <div className="relative z-10 mt-1.5">
+          <DomainLink
+            domain={task.domainName}
+            className="truncate text-xs font-medium"
+            onClick={(e) => e.stopPropagation()}
+            onMouseDown={(e) => e.stopPropagation()}
+          />
+        </div>
       )}
       {task.description && (
         <p className="mt-2 line-clamp-2 text-xs leading-relaxed text-slate-500">{task.description}</p>
