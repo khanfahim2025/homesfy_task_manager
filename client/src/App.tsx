@@ -3,12 +3,14 @@ import { useAuth } from './context/AuthContext';
 import { Layout } from './components/Layout';
 import { Login } from './pages/Login';
 import { Tasks } from './pages/Tasks';
-import { TaskNew } from './pages/TaskNew';
-import { TaskDetail } from './pages/TaskDetail';
-import { AuthVerify } from './pages/AuthVerify';
-import { SetPassword } from './pages/SetPassword';
-import { AdminUsers } from './pages/AdminUsers';
-import type { ReactNode } from 'react';
+import { lazy, Suspense, type ReactNode } from 'react';
+
+// Less-visited pages load on demand to keep the first page load small.
+const TaskNew = lazy(() => import('./pages/TaskNew').then((m) => ({ default: m.TaskNew })));
+const TaskDetail = lazy(() => import('./pages/TaskDetail').then((m) => ({ default: m.TaskDetail })));
+const AuthVerify = lazy(() => import('./pages/AuthVerify').then((m) => ({ default: m.AuthVerify })));
+const SetPassword = lazy(() => import('./pages/SetPassword').then((m) => ({ default: m.SetPassword })));
+const AdminUsers = lazy(() => import('./pages/AdminUsers').then((m) => ({ default: m.AdminUsers })));
 
 function Protected({ children }: { children: ReactNode }) {
   const { user, loading } = useAuth();
@@ -33,33 +35,35 @@ function AdminOnly({ children }: { children: ReactNode }) {
 export default function App() {
   return (
     <BrowserRouter>
-      <Routes>
-        <Route path="/login" element={<Login />} />
-        <Route path="/auth/verify" element={<AuthVerify />} />
-        <Route path="/set-password" element={<SetPassword />} />
-        <Route
-          element={
-            <Protected>
-              <Layout />
-            </Protected>
-          }
-        >
-          <Route path="/tasks" element={<Tasks />} />
-          <Route path="/tasks/new" element={<TaskNew />} />
-          <Route path="/tasks/:id" element={<TaskDetail />} />
+      <Suspense fallback={null}>
+        <Routes>
+          <Route path="/login" element={<Login />} />
+          <Route path="/auth/verify" element={<AuthVerify />} />
+          <Route path="/set-password" element={<SetPassword />} />
           <Route
-            path="/admin/users"
             element={
-              <AdminOnly>
-                <AdminUsers />
-              </AdminOnly>
+              <Protected>
+                <Layout />
+              </Protected>
             }
-          />
-          <Route path="/projects" element={<Navigate to="/tasks" replace />} />
-        </Route>
-        <Route path="/" element={<Navigate to="/tasks" replace />} />
-        <Route path="*" element={<Navigate to="/tasks" replace />} />
-      </Routes>
+          >
+            <Route path="/tasks" element={<Tasks />} />
+            <Route path="/tasks/new" element={<TaskNew />} />
+            <Route path="/tasks/:id" element={<TaskDetail />} />
+            <Route
+              path="/admin/users"
+              element={
+                <AdminOnly>
+                  <AdminUsers />
+                </AdminOnly>
+              }
+            />
+            <Route path="/projects" element={<Navigate to="/tasks" replace />} />
+          </Route>
+          <Route path="/" element={<Navigate to="/tasks" replace />} />
+          <Route path="*" element={<Navigate to="/tasks" replace />} />
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }

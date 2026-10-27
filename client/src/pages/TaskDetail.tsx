@@ -9,7 +9,7 @@ import {
 } from '@heroicons/react/24/outline';
 import { api, ApiError } from '../api/client';
 import type { TaskStatus } from '../types';
-import { STATUS_LABELS, STATUS_ORDER, formatDateTime } from '../lib/format';
+import { CATEGORY_LABELS, STATUS_LABELS, STATUS_ORDER, TEAM_LABELS, formatDateTime } from '../lib/format';
 import { PriorityBadge, StatusBadge } from '../components/Badges';
 import { AttachmentThumbnailGrid } from '../components/AttachmentThumbnailGrid';
 import { AttachmentUploadZone } from '../components/AttachmentPicker';
@@ -136,6 +136,7 @@ export function TaskDetail() {
 
   const canDelete = user?.role === 'admin' || user?.id === task.creatorId;
   const assignees = task.assignees ?? (task.assignee ? [task.assignee] : []);
+  const teamUsers = users.filter((u) => u.team === task.team);
 
   return (
     <div className="page-shell overflow-y-auto">
@@ -153,6 +154,12 @@ export function TaskDetail() {
                 <div className="mt-2 flex items-center gap-2">
                   <StatusBadge status={task.status} />
                   <PriorityBadge priority={task.priority} />
+                  <span className="rounded-md bg-[#2fc6f6]/10 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-[#137fa8]">
+                    {TEAM_LABELS[task.team]}
+                  </span>
+                  <span className="rounded-md bg-slate-100 px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-slate-500">
+                    {CATEGORY_LABELS[task.category]}
+                  </span>
                 </div>
               </div>
               {canDelete && (
@@ -242,6 +249,24 @@ export function TaskDetail() {
                   )}
                 </div>
               )}
+            </div>
+          )}
+
+          {(task.contentText || task.contentUrls) && (
+            <div className="card min-w-0 p-4 sm:p-6">
+              <h2 className="mb-4 text-lg font-semibold text-slate-900">Request brief</h2>
+              <dl className="grid min-w-0 gap-4">
+                {task.contentText && (
+                  <Field label="Brief" copyText={task.contentText}>
+                    <p className="whitespace-pre-wrap text-slate-700">{task.contentText}</p>
+                  </Field>
+                )}
+                {task.contentUrls && (
+                  <Field label="Reference URLs" copyText={task.contentUrls}>
+                    <p className="whitespace-pre-wrap break-words text-slate-700">{task.contentUrls}</p>
+                  </Field>
+                )}
+              </dl>
             </div>
           )}
 
@@ -394,7 +419,7 @@ export function TaskDetail() {
             <div className="space-y-4">
               <UserMultiSelect
                 label="Assignees"
-                users={users}
+                users={teamUsers}
                 value={assigneeIds}
                 onChange={(ids) => {
                   setAssigneeIds(ids);
@@ -403,7 +428,7 @@ export function TaskDetail() {
               />
               <UserMultiSelect
                 label="Observers"
-                users={users}
+                users={teamUsers}
                 value={observerIds}
                 onChange={(ids) => {
                   setObserverIds(ids);
@@ -412,7 +437,7 @@ export function TaskDetail() {
               />
               <UserMultiSelect
                 label="Participants"
-                users={users}
+                users={teamUsers}
                 value={participantIds}
                 onChange={(ids) => {
                   setParticipantIds(ids);

@@ -1,17 +1,28 @@
-import { useState } from 'react';
+import { useRef, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import {
+  AdjustmentsHorizontalIcon,
+  CalendarDaysIcon,
+  ClipboardDocumentListIcon,
+  PaperClipIcon,
+  Squares2X2Icon,
+  UsersIcon,
+} from '@heroicons/react/24/outline';
 import { api, ApiError } from '../api/client';
-import type { Task, TaskCategory, TaskInput, TaskPriority, TaskStatus } from '../types';
+import type { Task, TaskCategory, TaskInput, TaskPriority, TaskStatus, Team } from '../types';
 import {
   CATEGORY_LABELS,
   isWebsiteCategory,
   PRIORITY_LABELS,
   STATUS_LABELS,
   STATUS_ORDER,
+  TEAM_LABELS,
+  TEAM_ORDER,
 } from '../lib/format';
 import { UserMultiSelect } from './UserMultiSelect';
 import { PendingAttachmentPicker } from './AttachmentPicker';
 import { DueDateTimeInput } from './DueDateTimeInput';
+import { useAuth } from '../context/AuthContext';
 
 interface Props {
   initial?: Partial<TaskInput>;
@@ -30,6 +41,28 @@ const WEBSITE_FIELDS = [
   'gtmBody',
 ] as const;
 
+function PanelTitle({
+  icon: Icon,
+  title,
+  description,
+}: {
+  icon: typeof ClipboardDocumentListIcon;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="flex items-start gap-3">
+      <div className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[#2fc6f6]/10 text-[#137fa8]">
+        <Icon className="h-4.5 w-4.5" />
+      </div>
+      <div className="min-w-0">
+        <h2 className="text-sm font-semibold text-slate-950">{title}</h2>
+        {description && <p className="mt-0.5 text-xs leading-relaxed text-slate-500">{description}</p>}
+      </div>
+    </div>
+  );
+}
+
 export function TaskCreateForm({
   initial,
   submitLabel = 'Create task',
@@ -37,6 +70,7 @@ export function TaskCreateForm({
   onSuccess,
   onCancel,
 }: Props) {
+  const { user } = useAuth();
   const { data: users = [] } = useQuery({ queryKey: ['users'], queryFn: api.listAssignableUsers });
 
   const [form, setForm] = useState<TaskInput>({
@@ -44,7 +78,9 @@ export function TaskCreateForm({
     description: initial?.description ?? '',
     status: initial?.status ?? 'new',
     priority: initial?.priority ?? 'medium',
-    category: initial?.category ?? 'website_development',
+    category: initial?.category ?? 'general',
+    team: initial?.team ?? user?.team ?? 'tech',
+    effortPoints: initial?.effortPoints ?? 5,
     dueDate: initial?.dueDate ?? '',
     assigneeIds: initial?.assigneeIds ?? (initial?.assigneeId ? [initial.assigneeId] : []),
     observerIds: initial?.observerIds ?? [],
@@ -55,12 +91,22 @@ export function TaskCreateForm({
     locationIframe: initial?.locationIframe ?? '',
     gtmHead: initial?.gtmHead ?? '',
     gtmBody: initial?.gtmBody ?? '',
+    contentText: initial?.contentText ?? '',
+    contentUrls: initial?.contentUrls ?? '',
   });
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  // Set once the task exists, so retrying after a failed upload never creates a duplicate.
+  const savedTaskId = useRef<string | null>(null);
   const [pendingFiles, setPendingFiles] = useState<File[]>([]);
 
   const showWebsiteDetails = isWebsiteCategory(form.category ?? 'website_development');
+  const showBriefDetails = form.category === 'creative' || form.category === 'content_creation';
+  const selectedTeam = (form.team ?? user?.team ?? 'tech') as Team;
+  const teamUsers = users.filter((u) => u.team === selectedTeam);
+  const isNew = submitLabel === 'Create task';
+  const submitText = isNew ? 'Create ticket' : submitLabel;
+  const canManagePoints = user?.role === 'admin' || user?.role === 'manager';
 
   const set = <K extends keyof TaskInput>(key: K, value: TaskInput[K]) =>
     setForm((f) => ({ ...f, [key]: value }));
@@ -75,6 +121,16 @@ export function TaskCreateForm({
     });
   };
 
+  const setTeam = (team: Team) => {
+    setForm((f) => ({
+      ...f,
+      team,
+      assigneeIds: [],
+      observerIds: [],
+      participantIds: [],
+    }));
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError(null);
@@ -82,6 +138,8 @@ export function TaskCreateForm({
     try {
       const payload: TaskInput = {
         ...form,
+        category: form.category ?? 'general',
+        team: selectedTeam,
         dueDate: form.dueDate || null,
         assigneeIds: form.assigneeIds ?? [],
         observerIds: form.observerIds ?? [],
@@ -90,72 +148,131 @@ export function TaskCreateForm({
 
       if (!isWebsiteCategory(form.category ?? 'website_development')) {
         for (const key of WEBSITE_FIELDS) payload[key] = undefined;
+      } else {
+        payload.contentText = undefined;
+        payload.contentUrls = undefined;
       }
 
-      const task = await onSubmit(payload);
+      const taskId = savedTaskId.current ?? (await onSubmit(payload)).id;
+      savedTaskId.current = taskId;
       if (pendingFiles.length > 0) {
-        await api.uploadAttachments(task.id, pendingFiles);
+        try {
+          await api.uploadAttachments(taskId, pendingFiles);
+        } catch (err) {
+          const reason = err instanceof ApiError ? err.message : 'Upload failed';
+          throw new ApiError(0, `Task saved, but files were not attached: ${reason}. Submit again to retry the upload.`);
+        }
       }
-      onSuccess(task.id);
+      onSuccess(taskId);
     } catch (err) {
       setError(err instanceof ApiError ? err.message : 'Something went wrong');
       setSaving(false);
     }
   };
 
-  const isNew = submitLabel === 'Create task';
-
   return (
-    <form onSubmit={handleSubmit} className="flex min-h-0 flex-1 flex-col gap-6 lg:flex-row lg:items-start">
-      <div className="min-w-0 flex-1 space-y-6">
-        <div className="card space-y-6 p-4 sm:p-6">
-          <h1 className="text-xl font-semibold text-slate-900">
-            {isNew ? 'New task' : 'Edit task'}
-          </h1>
+    <form onSubmit={handleSubmit} className="mx-auto flex w-full max-w-7xl flex-1 flex-col gap-5 lg:grid lg:grid-cols-[minmax(0,1fr)_360px] xl:grid-cols-[minmax(0,1fr)_400px]">
+      <div className="min-w-0 space-y-5">
+        <div className="overflow-hidden rounded-lg border border-slate-200/80 bg-white shadow-sm">
+          <div className="border-b border-slate-100 bg-slate-50/70 px-4 py-4 sm:px-6">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="min-w-0">
+                <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[#137fa8]">
+                  Ticket composer
+                </p>
+                <h1 className="mt-1 text-xl font-semibold text-slate-950">
+                  {isNew ? 'Create a universal task' : 'Edit task'}
+                </h1>
+              </div>
+              <div className="flex items-center gap-2 rounded-lg border border-slate-200 bg-white px-3 py-2 text-xs font-semibold text-slate-500">
+                <Squares2X2Icon className="h-4 w-4 text-[#137fa8]" />
+                {TEAM_LABELS[selectedTeam]}
+              </div>
+            </div>
+          </div>
+
+          <div className="space-y-6 p-4 sm:p-6">
+            <PanelTitle
+              icon={ClipboardDocumentListIcon}
+              title="What needs to get done?"
+              description="Keep the request simple: title, outcome, context, and any blockers."
+            />
 
           {error && (
             <div className="rounded-lg bg-red-50 px-4 py-3 text-sm text-red-700">{error}</div>
           )}
 
-          <div>
-            <label className="label">Category</label>
-            <select
-              className="input"
-              value={form.category}
-              onChange={(e) => setCategory(e.target.value as TaskCategory)}
-            >
-              {(Object.keys(CATEGORY_LABELS) as TaskCategory[]).map((c) => (
-                <option key={c} value={c}>
-                  {CATEGORY_LABELS[c]}
-                </option>
-              ))}
-            </select>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_220px]">
+            <div>
+              <label className="label">Title *</label>
+              <input
+                className="input h-12 text-base font-medium"
+                required
+                value={form.title}
+                onChange={(e) => set('title', e.target.value)}
+                placeholder="e.g. Update pricing page, prepare campaign creatives"
+              />
+            </div>
+            <div>
+              <label className="label">Task type</label>
+              <select
+                className="input h-12"
+                value={form.category}
+                onChange={(e) => setCategory(e.target.value as TaskCategory)}
+              >
+                {(Object.keys(CATEGORY_LABELS) as TaskCategory[]).map((c) => (
+                  <option key={c} value={c}>
+                    {CATEGORY_LABELS[c]}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
 
           <div>
-            <label className="label">Title *</label>
-            <input
-              className="input"
-              required
-              value={form.title}
-              onChange={(e) => set('title', e.target.value)}
-              placeholder="e.g. Build landing page"
-            />
-          </div>
-
-          <div>
-            <label className="label">Description</label>
+            <label className="label">Details</label>
             <textarea
-              className={`input ${showWebsiteDetails ? 'min-h-[90px]' : 'min-h-[180px]'}`}
+              className="input min-h-[210px] resize-y text-sm leading-relaxed"
               value={form.description}
               onChange={(e) => set('description', e.target.value)}
+              placeholder="Describe the expected output, context, requirements, links, and what done should look like."
             />
+          </div>
+
+          <div>
+            <label className="label">Team</label>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {TEAM_ORDER.map((team) => (
+                <button
+                  key={team}
+                  type="button"
+                  disabled={user?.role !== 'admin' && team !== user?.team}
+                  className={`category-tile ${selectedTeam === team ? 'category-tile-active' : ''}`}
+                  onClick={() => setTeam(team)}
+                >
+                  <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-slate-100 text-xs font-bold uppercase text-slate-500">
+                    {team.slice(0, 2)}
+                  </span>
+                  <span className="min-w-0 text-left">
+                    <span className="block truncate text-sm font-semibold">{TEAM_LABELS[team]}</span>
+                    <span className="mt-0.5 block truncate text-[11px] text-slate-500">
+                      {team === 'tech' ? 'Product, website, QA, development' : 'Creative, content, campaigns'}
+                    </span>
+                  </span>
+                </button>
+              ))}
+            </div>
+          </div>
           </div>
         </div>
 
         {showWebsiteDetails && (
           <fieldset className="card space-y-4 p-4 sm:p-6">
-            <legend className="text-sm font-semibold text-slate-700">Website details</legend>
+            <PanelTitle
+              icon={AdjustmentsHorizontalIcon}
+              title="Website details"
+              description="Only needed for website tasks. Leave blank for ordinary work requests."
+            />
             <div className="grid gap-4 sm:grid-cols-2">
               <div>
                 <label className="label">Domain</label>
@@ -213,35 +330,61 @@ export function TaskCreateForm({
           </fieldset>
         )}
 
+        {showBriefDetails && (
+          <fieldset className="card space-y-4 p-4 sm:p-6">
+            <PanelTitle
+              icon={ClipboardDocumentListIcon}
+              title="Specialized brief"
+              description="Use this for campaign-specific creative or content instructions."
+            />
+            <div>
+              <label className="label">
+                {form.category === 'creative' ? 'Creative brief' : 'Content brief'}
+              </label>
+              <textarea
+                className="input min-h-[130px]"
+                value={form.contentText}
+                onChange={(e) => set('contentText', e.target.value)}
+                placeholder={
+                  form.category === 'creative'
+                    ? 'Mention sizes, formats, theme, copy, references, and revision notes.'
+                    : 'Add target audience, tone, keywords, CTA, structure, and draft copy.'
+                }
+              />
+            </div>
+            <div>
+              <label className="label">Reference URLs</label>
+              <textarea
+                className="input min-h-[80px]"
+                value={form.contentUrls}
+                onChange={(e) => set('contentUrls', e.target.value)}
+                placeholder="Paste one or more links for references, assets, pages, or examples."
+              />
+            </div>
+          </fieldset>
+        )}
+
         <div className="card space-y-3 p-4 sm:p-6">
-          <div>
-            <h2 className="text-sm font-semibold text-slate-900">Attachments</h2>
-            <p className="mt-0.5 text-xs text-slate-500">Optional — add now or upload later on the task page</p>
-          </div>
+          <PanelTitle
+            icon={PaperClipIcon}
+            title="Attachments"
+            description="Optional files, screenshots, videos, documents, or references."
+          />
           <PendingAttachmentPicker
             files={pendingFiles}
             onChange={setPendingFiles}
             disabled={saving}
           />
         </div>
-
-        <div className="flex flex-wrap justify-end gap-3 pb-2">
-          <button type="button" className="btn-secondary" onClick={onCancel}>
-            Cancel
-          </button>
-          <button type="submit" className="btn-primary" disabled={saving}>
-            {saving
-              ? pendingFiles.length > 0
-                ? 'Creating & uploading…'
-                : 'Saving…'
-              : submitLabel}
-          </button>
-        </div>
       </div>
 
-      <aside className="w-full shrink-0 space-y-4 lg:sticky lg:top-0 lg:w-[360px] xl:w-[400px]">
+      <aside className="w-full shrink-0 space-y-4 lg:sticky lg:top-0">
         <div className="card space-y-4 p-5">
-          <h2 className="text-sm font-semibold text-slate-900">Details</h2>
+          <PanelTitle
+            icon={CalendarDaysIcon}
+            title="Schedule and priority"
+            description="Set how the team should triage this work."
+          />
           <div>
             <label className="label">Status</label>
             <select
@@ -271,6 +414,21 @@ export function TaskCreateForm({
             </select>
           </div>
           <div>
+            <label className="label">Effort points</label>
+            <input
+              type="number"
+              min={1}
+              max={100}
+              className="input"
+              value={form.effortPoints ?? 5}
+              disabled={!canManagePoints}
+              onChange={(e) => set('effortPoints', Number(e.target.value))}
+            />
+            <p className="mt-1 text-[11px] text-slate-400">
+              Managers/admins control points. Due-date performance adjusts the final score.
+            </p>
+          </div>
+          <div>
             <label className="label">Due date & time</label>
             <DueDateTimeInput
               value={form.dueDate || null}
@@ -280,28 +438,53 @@ export function TaskCreateForm({
         </div>
 
         <div className="card space-y-4 p-5">
-          <h2 className="text-sm font-semibold text-slate-900">People</h2>
+          <PanelTitle
+            icon={UsersIcon}
+            title="People"
+            description={`Only ${TEAM_LABELS[selectedTeam]} members are shown here.`}
+          />
           <UserMultiSelect
             label="Assignees"
             hint="People responsible for completing this task"
-            users={users}
+            users={teamUsers}
             value={form.assigneeIds ?? []}
             onChange={(ids) => set('assigneeIds', ids)}
           />
           <UserMultiSelect
             label="Observers"
             hint="People who follow updates on this task"
-            users={users}
+            users={teamUsers}
             value={form.observerIds ?? []}
             onChange={(ids) => set('observerIds', ids)}
           />
           <UserMultiSelect
             label="Participants"
             hint="People involved in working on this task"
-            users={users}
+            users={teamUsers}
             value={form.participantIds ?? []}
             onChange={(ids) => set('participantIds', ids)}
           />
+        </div>
+
+        <div className="card p-5">
+          <div className="mb-4">
+            <h2 className="text-sm font-semibold text-slate-950">Ready to create?</h2>
+            <p className="mt-1 text-xs leading-relaxed text-slate-500">
+              The task will appear in the {TEAM_LABELS[selectedTeam]} queue immediately.
+            </p>
+          </div>
+          <div className="grid grid-cols-2 gap-2">
+            <button type="button" className="btn-secondary" onClick={onCancel}>
+              Cancel
+            </button>
+            <button type="submit" className="btn-primary" disabled={saving}>
+              {saving
+                ? pendingFiles.length > 0
+                  ? 'Creating…'
+                  : 'Saving…'
+                : submitText}
+            </button>
+          </div>
         </div>
       </aside>
     </form>

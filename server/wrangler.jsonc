@@ -1,0 +1,39 @@
+{
+	"$schema": "../node_modules/wrangler/config-schema.json",
+	"name": "homesfy-task-manager",
+	"main": "src/index.ts",
+	"compatibility_date": "2026-10-01",
+	"compatibility_flags": [
+		"nodejs_compat"
+	],
+	"observability": {
+		"enabled": true
+	},
+	// The React build is served as static assets; /api/* runs the Worker.
+	"assets": {
+		"directory": "../client/dist",
+		"not_found_handling": "single-page-application",
+		"run_worker_first": [
+			"/api/*"
+		]
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "homesfy-task-manager",
+			"database_id": "9304da3c-68d8-44d6-a7ce-4c2ef86ef70c",
+			"migrations_dir": "migrations"
+		}
+	],
+	// Non-secret settings. Secrets (SESSION_SECRET, AWS_ACCESS_KEY_ID,
+	// AWS_SECRET_ACCESS_KEY, RESEND_API_KEY) are set with `wrangler secret put`,
+	// or in .dev.vars for local development.
+	"vars": {
+		"APP_URL": "https://homesfy-task-manager.fahim-khan.workers.dev",
+		"ALLOWED_EMAIL_DOMAIN": "homesfy.in",
+		"AWS_REGION": "ap-south-1",
+		"S3_BUCKET": "task-manager-homesfy",
+		"MAX_UPLOAD_MB": "100",
+		"EMAIL_FROM": "Homesfy Task Manager <noreply@homeesfytestwebsite.com>"
+	}
+}

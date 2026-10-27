@@ -1,148 +1,97 @@
-import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
-import { asyncHandler } from '../lib/asyncHandler.js';
-import { AppError } from '../lib/errors.js';
-import { requireAuth, requireAdmin } from '../middleware/auth.js';
-import { createUserSchema, updateUserSchema } from '../validators/user.js';
-import { createAuthToken } from '../lib/authTokens.js';
-import { env } from '../lib/env.js';
+import { Hono, type Context } from 'hono';
+import { AppError } from '../lib/errors';
+import { createAuthToken } from '../lib/authTokens';
+import { inviteEmail, sendEmail } from '../lib/email';
+import { requireAdmin } from '../middleware/auth';
+import { createUserSchema, updateUserSchema } from '../validators/user';
+import type { AuthedEnv } from '../types';
 
-export const usersRouter = Router();
+export const usersRouter = new Hono<AuthedEnv>();
 
 const select = {
   id: true,
   email: true,
   name: true,
   role: true,
+  team: true,
   isActive: true,
   avatarUrl: true,
   createdAt: true,
 } as const;
 
-function assertEmailDomain(email: string): void {
-  if (env.allowedEmailDomain) {
-    const domain = email.split('@')[1] ?? '';
-    if (domain.toLowerCase() !== env.allowedEmailDomain.toLowerCase()) {
-      throw new AppError(403, `Only @${env.allowedEmailDomain} accounts are allowed`, 'BAD_DOMAIN');
-    }
-  }
+usersRouter.get('/assignable', async (c) => {
+  const users = await c.var.db.user.findMany({
+    where: { isActive: true },
+    select: { id: true, name: true, email: true, team: true, avatarUrl: true },
+    orderBy: { name: 'asc' },
+  });
+  return c.json({ users });
+});
+
+usersRouter.use('*', requireAdmin);
+
+usersRouter.get('/', async (c) => {
+  const users = await c.var.db.user.findMany({ select, orderBy: { name: 'asc' } });
+  return c.json({ users });
+});
+
+async function inviteUser(c: Context<AuthedEnv>, user: { id: string; email: string; name: string }) {
+  const url = await createAuthToken(c.var.db, c.env.APP_URL, {
+    userId: user.id,
+    email: user.email,
+    purpose: 'set_password',
+    createdById: c.var.user.id,
+  });
+  c.executionCtx.waitUntil(
+    sendEmail(c.env, { to: user.email, subject: 'Your Task Manager invite', html: inviteEmail(user.name, url) })
+  );
+  return url;
 }
 
-usersRouter.use(requireAuth);
+usersRouter.post('/', async (c) => {
+  const { email, name, role, team } = createUserSchema.parse(await c.req.json());
+  const domain = c.env.ALLOWED_EMAIL_DOMAIN;
+  if (domain && email.split('@')[1] !== domain.toLowerCase()) {
+    throw new AppError(403, `Only @${domain} accounts are allowed`, 'BAD_DOMAIN');
+  }
+  if (await c.var.db.user.findUnique({ where: { email }, select: { id: true } })) {
+    throw new AppError(409, 'An account with that email already exists', 'EMAIL_TAKEN');
+  }
 
-const assignableSelect = {
-  id: true,
-  name: true,
-  email: true,
-  avatarUrl: true,
-} as const;
+  const user = await c.var.db.user.create({
+    data: { email, name, role: role ?? 'member', team: team ?? 'tech' },
+    select,
+  });
+  const inviteUrl = await inviteUser(c, user);
+  return c.json({ user, inviteUrl }, 201);
+});
 
-usersRouter.get(
-  '/assignable',
-  asyncHandler(async (_req, res) => {
-    const users = await prisma.user.findMany({
-      where: { isActive: true },
-      select: assignableSelect,
-      orderBy: { name: 'asc' },
-    });
-    res.json({ users });
-  })
-);
+usersRouter.post('/:id/invite-link', async (c) => {
+  const user = await c.var.db.user.findUniqueOrThrow({
+    where: { id: c.req.param('id') },
+    select: { id: true, email: true, name: true, isActive: true },
+  });
+  if (!user.isActive) throw new AppError(403, 'Cannot invite deactivated user', 'INACTIVE');
+  return c.json({ url: await inviteUser(c, user) });
+});
 
-usersRouter.get(
-  '/',
-  requireAdmin,
-  asyncHandler(async (_req, res) => {
-    const users = await prisma.user.findMany({ select, orderBy: { name: 'asc' } });
-    res.json({ users });
-  })
-);
+usersRouter.post('/:id/login-link', async (c) => {
+  const user = await c.var.db.user.findUniqueOrThrow({
+    where: { id: c.req.param('id') },
+    select: { id: true, email: true, isActive: true },
+  });
+  if (!user.isActive) throw new AppError(403, 'Cannot create login link for deactivated user', 'INACTIVE');
+  const url = await createAuthToken(c.var.db, c.env.APP_URL, {
+    userId: user.id,
+    email: user.email,
+    purpose: 'login',
+    createdById: c.var.user.id,
+  });
+  return c.json({ url });
+});
 
-usersRouter.post(
-  '/',
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const { email, name, role } = createUserSchema.parse(req.body);
-    assertEmailDomain(email);
-
-    const existing = await prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      throw new AppError(409, 'An account with that email already exists', 'EMAIL_TAKEN');
-    }
-
-    const user = await prisma.user.create({
-      data: { email, name, role: role ?? 'member', passwordHash: null },
-      select,
-    });
-
-    const { url: inviteUrl } = await createAuthToken({
-      userId: user.id,
-      email: user.email,
-      purpose: 'set_password',
-      createdById: req.user!.id,
-    });
-
-    res.status(201).json({ user, inviteUrl });
-  })
-);
-
-usersRouter.post(
-  '/:id/invite-link',
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: req.params.id },
-      select: { id: true, email: true, isActive: true },
-    });
-    if (!user.isActive) {
-      throw new AppError(403, 'Cannot invite deactivated user', 'INACTIVE');
-    }
-
-    const { url } = await createAuthToken({
-      userId: user.id,
-      email: user.email,
-      purpose: 'set_password',
-      createdById: req.user!.id,
-    });
-
-    res.json({ url });
-  })
-);
-
-usersRouter.post(
-  '/:id/login-link',
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const user = await prisma.user.findUniqueOrThrow({
-      where: { id: req.params.id },
-      select: { id: true, email: true, isActive: true, passwordHash: true },
-    });
-    if (!user.isActive) {
-      throw new AppError(403, 'Cannot create login link for deactivated user', 'INACTIVE');
-    }
-
-    const { url } = await createAuthToken({
-      userId: user.id,
-      email: user.email,
-      purpose: 'login',
-      createdById: req.user!.id,
-    });
-
-    res.json({ url });
-  })
-);
-
-usersRouter.patch(
-  '/:id',
-  requireAdmin,
-  asyncHandler(async (req, res) => {
-    const input = updateUserSchema.parse(req.body);
-    const data: Record<string, unknown> = {};
-    if (input.name) data.name = input.name;
-    if (input.role) data.role = input.role;
-    if (input.isActive !== undefined) data.isActive = input.isActive;
-
-    const user = await prisma.user.update({ where: { id: req.params.id }, data, select });
-    res.json({ user });
-  })
-);
+usersRouter.patch('/:id', async (c) => {
+  const data = updateUserSchema.parse(await c.req.json());
+  const user = await c.var.db.user.update({ where: { id: c.req.param('id') }, data, select });
+  return c.json({ user });
+});

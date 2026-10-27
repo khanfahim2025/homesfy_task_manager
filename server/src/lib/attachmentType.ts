@@ -1,4 +1,4 @@
-import type { AttachmentType } from '@prisma/client';
+import type { AttachmentType } from '../generated/prisma/client';
 
 const IMAGE = /^image\//;
 const VIDEO = /^video\//;

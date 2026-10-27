@@ -1,59 +1,43 @@
-import { Router } from 'express';
-import { prisma } from '../lib/prisma.js';
-import { asyncHandler } from '../lib/asyncHandler.js';
-import { AppError } from '../lib/errors.js';
-import { createCommentSchema } from '../validators/comment.js';
-import { assertTaskAccess } from '../lib/taskAccess.js';
+import { Hono } from 'hono';
+import { AppError } from '../lib/errors';
+import { touchTask } from '../services/taskService';
+import { createCommentSchema } from '../validators/comment';
+import type { AuthedEnv } from '../types';
 
-export const commentsRouter = Router({ mergeParams: true });
+/** Mounted at /api/tasks/:id/comments, after the task access check. */
+export const commentsRouter = new Hono<AuthedEnv>();
 
-const authorSelect = { select: { id: true, name: true, email: true, avatarUrl: true } } as const;
+const author = { select: { id: true, name: true, email: true, avatarUrl: true } } as const;
 
-commentsRouter.use(
-  asyncHandler(async (req, res, next) => {
-    await assertTaskAccess(req.user!, req.params.taskId);
-    next();
-  })
-);
+commentsRouter.get('/', async (c) => {
+  const comments = await c.var.db.comment.findMany({
+    where: { taskId: c.req.param('id') },
+    include: { author },
+    orderBy: { createdAt: 'asc' },
+  });
+  return c.json({ comments });
+});
 
-commentsRouter.get(
-  '/',
-  asyncHandler(async (req, res) => {
-    const comments = await prisma.comment.findMany({
-      where: { taskId: req.params.taskId },
-      include: { author: authorSelect },
-      orderBy: { createdAt: 'asc' },
-    });
-    res.json({ comments });
-  })
-);
+commentsRouter.post('/', async (c) => {
+  const taskId = c.req.param('id')!;
+  const { body } = createCommentSchema.parse(await c.req.json());
+  const comment = await c.var.db.comment.create({
+    data: { body, taskId, authorId: c.var.user.id },
+    include: { author },
+  });
+  await touchTask(c.var.db, taskId);
+  return c.json({ comment }, 201);
+});
 
-commentsRouter.post(
-  '/',
-  asyncHandler(async (req, res) => {
-    const { body } = createCommentSchema.parse(req.body);
-    const comment = await prisma.comment.create({
-      data: {
-        body,
-        task: { connect: { id: req.params.taskId } },
-        author: { connect: { id: req.user!.id } },
-      },
-      include: { author: authorSelect },
-    });
-    res.status(201).json({ comment });
-  })
-);
-
-commentsRouter.delete(
-  '/:commentId',
-  asyncHandler(async (req, res) => {
-    const comment = await prisma.comment.findUniqueOrThrow({
-      where: { id: req.params.commentId },
-    });
-    if (comment.authorId !== req.user!.id && req.user!.role !== 'admin') {
-      throw new AppError(403, 'You can only delete your own comments', 'FORBIDDEN');
-    }
-    await prisma.comment.delete({ where: { id: req.params.commentId } });
-    res.json({ ok: true });
-  })
-);
+commentsRouter.delete('/:commentId', async (c) => {
+  const taskId = c.req.param('id')!;
+  const comment = await c.var.db.comment.findFirstOrThrow({
+    where: { id: c.req.param('commentId'), taskId },
+  });
+  if (comment.authorId !== c.var.user.id && c.var.user.role !== 'admin') {
+    throw new AppError(403, 'You can only delete your own comments', 'FORBIDDEN');
+  }
+  await c.var.db.comment.delete({ where: { id: comment.id } });
+  await touchTask(c.var.db, taskId);
+  return c.json({ ok: true });
+});

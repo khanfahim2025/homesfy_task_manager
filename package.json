@@ -3,11 +3,10 @@
   "private": true,
   "workspaces": ["client", "server"],
   "scripts": {
-    "dev": "concurrently \"npm run dev -w server\" \"npm run dev -w client\"",
-    "build": "npm run build -w client && npm run build -w server",
-    "start": "npm run start -w server",
-    "db:migrate": "npm run db:migrate -w server",
-    "db:seed": "npm run db:seed -w server"
+    "dev": "concurrently -k -n api,web \"npm run dev -w server\" \"npm run dev -w client\"",
+    "build": "npm run build -w client",
+    "deploy": "npm run build && npm run db:migrate:remote -w server && npm run deploy:worker -w server",
+    "typecheck": "npm run typecheck -w server && tsc -b client"
   },
   "devDependencies": {
     "concurrently": "^9.1.2"

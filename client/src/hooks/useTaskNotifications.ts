@@ -53,13 +53,31 @@ export function useTaskNotifications(userId: string | undefined): void {
     };
   }, []);
 
-  const { data: tasks = [] } = useQuery({
-    queryKey: ['tasks', 'notifications'],
-    queryFn: () => api.listTasks(),
+  // Poll a tiny version marker; only re-fetch the task list when it changes.
+  const { data: version } = useQuery({
+    queryKey: ['tasks-version'],
+    queryFn: api.getTasksVersion,
     enabled: Boolean(userId),
     refetchInterval: POLL_MS,
     refetchIntervalInBackground: true,
   });
+
+  const { data: tasks = [] } = useQuery({
+    queryKey: ['tasks', 'notifications'],
+    queryFn: () => api.listTasks(),
+    enabled: Boolean(userId),
+  });
+
+  const lastVersionRef = useRef<string | undefined>(undefined);
+  useEffect(() => {
+    if (!version) return;
+    const previous = lastVersionRef.current;
+    lastVersionRef.current = version;
+    if (previous !== undefined && previous !== version) {
+      void qc.invalidateQueries({ queryKey: ['tasks'] });
+      void qc.invalidateQueries({ queryKey: ['task'] });
+    }
+  }, [version, qc]);
 
   tasksRef.current = tasks;
 
@@ -71,7 +89,8 @@ export function useTaskNotifications(userId: string | undefined): void {
         event.query.queryKey[0] === 'tasks' &&
         event.query.queryKey[1] !== 'notifications'
       ) {
-        void qc.invalidateQueries({ queryKey: ['tasks', 'notifications'] });
+        // Reuse an in-flight refetch instead of cancelling and starting another.
+        void qc.invalidateQueries({ queryKey: ['tasks', 'notifications'] }, { cancelRefetch: false });
       }
     });
     return unsub;

@@ -1,4 +1,4 @@
-import { TaskStatus } from '@prisma/client';
+import type { TaskStatus } from '../generated/prisma/client';
 
 export function timestampsForStatusChange(
   from: TaskStatus,

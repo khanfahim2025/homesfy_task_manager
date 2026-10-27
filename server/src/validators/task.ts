@@ -2,11 +2,13 @@ import { z } from 'zod';
 
 export const TASK_STATUSES = ['new', 'assigned', 'accepted', 'in_progress', 'done', 'closed'] as const;
 export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const;
-export const TASK_CATEGORIES = ['website_development', 'creative', 'content_creation'] as const;
+export const TASK_CATEGORIES = ['general', 'website_development', 'creative', 'content_creation'] as const;
+export const TEAMS = ['tech', 'digital'] as const;
 
 const status = z.enum(TASK_STATUSES);
 const priority = z.enum(TASK_PRIORITIES);
 const category = z.enum(TASK_CATEGORIES);
+const team = z.enum(TEAMS);
 
 const optionalText = z
   .string()
@@ -23,6 +25,8 @@ export const createTaskSchema = z.object({
   status: status.optional(),
   priority: priority.optional(),
   category: category.optional(),
+  team: team.optional(),
+  effortPoints: z.number().int().min(1).max(100).optional(),
   dueDate: z.string().datetime().optional().nullable(),
   projectId: z.string().optional().nullable(),
   assigneeId: z.string().optional().nullable(),
@@ -47,10 +51,8 @@ export const taskQuerySchema = z.object({
   status: status.optional(),
   priority: priority.optional(),
   category: category.optional(),
+  team: team.optional(),
   projectId: z.string().optional(),
   assigneeId: z.string().optional(),
   q: z.string().trim().optional(),
 });
-
-export type CreateTaskInput = z.infer<typeof createTaskSchema>;
-export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;

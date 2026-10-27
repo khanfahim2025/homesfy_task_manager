@@ -1,4 +1,3 @@
-import JSZip from 'jszip';
 import type { Attachment } from '../types';
 
 function triggerBlobDownload(blob: Blob, fileName: string): void {
@@ -35,7 +34,8 @@ function uniqueFileName(name: string, used: Set<string>): string {
 }
 
 async function fetchAttachmentBlob(attachment: Attachment): Promise<{ name: string; blob: Blob }> {
-  const res = await fetch(attachment.fileUrl, { credentials: 'include' });
+  // Redirects to a presigned S3 URL; cookies only need to reach our own API.
+  const res = await fetch(attachment.fileUrl);
   if (!res.ok) {
     throw new Error(`Download failed: ${attachment.fileName ?? attachment.id}`);
   }
@@ -62,6 +62,7 @@ export async function downloadAttachmentsAsZip(
     return;
   }
 
+  const { default: JSZip } = await import('jszip');
   const zip = new JSZip();
   const used = new Set<string>();
 

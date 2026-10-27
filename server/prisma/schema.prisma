@@ -1,10 +1,11 @@
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  runtime  = "cloudflare"
 }
 
 datasource db {
-  provider = "postgresql"
-  url      = env("DATABASE_URL")
+  provider = "sqlite"
 }
 
 model User {
@@ -12,29 +13,23 @@ model User {
   name         String
   email        String   @unique
   role         UserRole @default(member)
+  team         Team     @default(tech)
   avatarUrl    String?  @map("avatar_url")
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   passwordHash String?  @map("password_hash")
 
-  attachments        Attachment[]
-  comments           Comment[]
-  createdProjects    Project[]
-  assignedTasks      Task[]                @relation("TaskAssignee")
-  createdTasks       Task[]                @relation("TaskCreator")
-  commentAttachments comment_attachments[]
-  magicLinkTokens         magic_link_tokens[] @relation("TokenUser")
-  magicLinkTokensCreated  magic_link_tokens[] @relation("TokenCreatedBy")
-  notifications      notifications[]
-  projectMembers     project_members[]
-  taskObservers      task_observers[]
-  taskAssignees      task_assignees[]
-  taskParticipants   task_participants[]
-  taskStatusLogs     task_status_log[]
-
-  assignmentLogChangedBy task_assignment_log[] @relation("task_assignment_log_changed_byTousers")
-  assignmentLogFromUser  task_assignment_log[] @relation("task_assignment_log_from_user_idTousers")
-  assignmentLogToUser    task_assignment_log[] @relation("task_assignment_log_to_user_idTousers")
+  attachments            Attachment[]
+  comments               Comment[]
+  createdProjects        Project[]
+  assignedTasks          Task[]              @relation("TaskAssignee")
+  createdTasks           Task[]              @relation("TaskCreator")
+  magicLinkTokens        magic_link_tokens[] @relation("TokenUser")
+  magicLinkTokensCreated magic_link_tokens[] @relation("TokenCreatedBy")
+  taskObservers          task_observers[]
+  taskAssignees          task_assignees[]
+  taskParticipants       task_participants[]
+  taskScoreEvents        task_score_events[]
 
   @@map("users")
 }
@@ -48,28 +43,31 @@ model Project {
   primaryDomain String?  @map("primary_domain")
   projectCode   String?  @map("project_code")
 
-  creator        User              @relation(fields: [createdById], references: [id])
-  members        project_members[]
-  tasks          Task[]
+  creator User   @relation(fields: [createdById], references: [id])
+  tasks   Task[]
 
+  @@index([primaryDomain])
+  @@index([projectCode])
   @@map("projects")
 }
 
 model Task {
-  id          String       @id @default(cuid())
-  title       String
-  description String?
-  projectId   String       @map("project_id")
-  assigneeId  String?      @map("assigned_to")
-  creatorId   String       @map("created_by")
-  dueDate     DateTime?    @map("due_date")
-  status      TaskStatus   @default(new)
-  priority    TaskPriority @default(medium)
-  category    TaskCategory @default(website_development) @map("task_category")
-  updatedAt   DateTime     @updatedAt @map("updated_at")
-  completedAt DateTime?    @map("completed_at")
-  closedAt    DateTime?    @map("closed_at")
-  createdAt   DateTime     @default(now()) @map("created_at")
+  id           String       @id @default(cuid())
+  title        String
+  description  String?
+  projectId    String       @map("project_id")
+  assigneeId   String?      @map("assigned_to")
+  creatorId    String       @map("created_by")
+  dueDate      DateTime?    @map("due_date")
+  status       TaskStatus   @default(new)
+  priority     TaskPriority @default(medium)
+  category     TaskCategory @default(website_development) @map("task_category")
+  team         Team         @default(tech)
+  effortPoints Int          @default(5) @map("effort_points")
+  updatedAt    DateTime     @updatedAt @map("updated_at")
+  completedAt  DateTime?    @map("completed_at")
+  closedAt     DateTime?    @map("closed_at")
+  createdAt    DateTime     @default(now()) @map("created_at")
 
   domainName     String? @map("domain_name")
   templateUrl    String? @map("template_url")
@@ -80,24 +78,38 @@ model Task {
   contentText    String? @map("content_text")
   contentUrls    String? @map("content_urls")
 
-  dueSoonNotifiedAt    DateTime? @map("due_soon_notified_at")
-  dueOverdueNotifiedAt DateTime? @map("due_overdue_notified_at")
-
-  assignee      User?                 @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
-  creator       User                  @relation("TaskCreator", fields: [creatorId], references: [id])
-  project       Project               @relation(fields: [projectId], references: [id], onDelete: Cascade)
-  attachments   Attachment[]
-  comments      Comment[]
-  assignmentLog task_assignment_log[]
-  observers     task_observers[]
-  assignees     task_assignees[]
-  participants  task_participants[]
-  statusLog     task_status_log[]
+  assignee     User?               @relation("TaskAssignee", fields: [assigneeId], references: [id], onDelete: Restrict)
+  creator      User                @relation("TaskCreator", fields: [creatorId], references: [id])
+  project      Project             @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  attachments  Attachment[]
+  comments     Comment[]
+  observers    task_observers[]
+  assignees    task_assignees[]
+  participants task_participants[]
+  scoreEvents  task_score_events[]
 
   @@index([assigneeId, status])
   @@index([dueDate])
   @@index([projectId, status])
+  @@index([team])
+  @@index([creatorId])
+  @@index([updatedAt])
   @@map("tasks")
+}
+
+model task_score_events {
+  id         String   @id @default(cuid())
+  task_id    String
+  user_id    String
+  points     Int
+  reason     String
+  created_at DateTime @default(now())
+
+  tasks Task @relation(fields: [task_id], references: [id], onDelete: Cascade)
+  users User @relation(fields: [user_id], references: [id], onDelete: Cascade)
+
+  @@unique([task_id, user_id])
+  @@index([user_id, created_at])
 }
 
 model Comment {
@@ -107,9 +119,8 @@ model Comment {
   body      String
   createdAt DateTime @default(now()) @map("created_at")
 
-  task        Task                  @relation(fields: [taskId], references: [id], onDelete: Cascade)
-  author      User                  @relation(fields: [authorId], references: [id])
-  attachments comment_attachments[]
+  task   Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  author User @relation(fields: [authorId], references: [id])
 
   @@index([taskId])
   @@map("comments")
@@ -129,21 +140,8 @@ model Attachment {
   uploadedBy User @relation(fields: [uploadedById], references: [id])
 
   @@index([taskId])
+  @@index([fileUrl])
   @@map("attachments")
-}
-
-model comment_attachments {
-  id          String   @id
-  comment_id  String
-  file_url    String
-  file_name   String?
-  mime_type   String?
-  uploaded_by String
-  created_at  DateTime @default(now())
-  comments    Comment  @relation(fields: [comment_id], references: [id], onDelete: Cascade)
-  users       User     @relation(fields: [uploaded_by], references: [id])
-
-  @@index([comment_id])
 }
 
 model magic_link_tokens {
@@ -161,57 +159,6 @@ model magic_link_tokens {
 
   @@index([email])
   @@index([user_id, purpose])
-}
-
-enum MagicLinkPurpose {
-  set_password
-  login
-}
-
-model notifications {
-  id         String    @id
-  user_id    String
-  type       String
-  payload    Json
-  read_at    DateTime?
-  created_at DateTime  @default(now())
-  users      User      @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@index([user_id, read_at])
-}
-
-model project_members {
-  project_id String
-  user_id    String
-  joined_at  DateTime @default(now())
-  projects   Project  @relation(fields: [project_id], references: [id], onDelete: Cascade)
-  users      User     @relation(fields: [user_id], references: [id], onDelete: Cascade)
-
-  @@id([project_id, user_id])
-}
-
-model session {
-  sid    String   @id @db.VarChar
-  sess   Json     @db.Json
-  expire DateTime @db.Timestamp(6)
-
-  @@index([expire], map: "IDX_session_expire")
-}
-
-model task_assignment_log {
-  id           String   @id
-  task_id      String
-  from_user_id String?
-  to_user_id   String?
-  changed_by   String
-  created_at   DateTime @default(now())
-
-  changedBy User  @relation("task_assignment_log_changed_byTousers", fields: [changed_by], references: [id])
-  fromUser  User? @relation("task_assignment_log_from_user_idTousers", fields: [from_user_id], references: [id])
-  toUser    User? @relation("task_assignment_log_to_user_idTousers", fields: [to_user_id], references: [id])
-  tasks     Task  @relation(fields: [task_id], references: [id], onDelete: Cascade)
-
-  @@index([task_id])
 }
 
 model task_observers {
@@ -247,17 +194,9 @@ model task_participants {
   @@index([user_id])
 }
 
-model task_status_log {
-  id          String     @id
-  task_id     String
-  from_status TaskStatus
-  to_status   TaskStatus
-  changed_by  String
-  created_at  DateTime   @default(now())
-  users       User       @relation(fields: [changed_by], references: [id])
-  tasks       Task       @relation(fields: [task_id], references: [id], onDelete: Cascade)
-
-  @@index([task_id])
+enum MagicLinkPurpose {
+  set_password
+  login
 }
 
 enum TaskStatus {
@@ -284,12 +223,19 @@ enum AttachmentType {
 }
 
 enum TaskCategory {
+  general
   website_development
   creative
   content_creation
 }
 
+enum Team {
+  tech
+  digital
+}
+
 enum UserRole {
   admin
+  manager
   member
 }

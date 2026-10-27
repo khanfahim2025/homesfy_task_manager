@@ -1,19 +1,26 @@
 node_modules
 dist
 build
-.env
-.env.local
-server/.env
-*.log
-.DS_Store
 coverage
-server/uploads
-uploads
+*.log
+*.tsbuildinfo
+.DS_Store
+
+# Secrets: never commit. Templates with field names only (*.example) are fine.
+.env
+.env.*
+.dev.vars
+.dev.vars.*
+!*.example
+*.pem
+
+# Generated / local state
+.wrangler
+server/src/generated
+server/.prisma-scratch.db*
 .prisma
 client/dist
 server/dist
 backups
 docs
 *.md
-deploy/.last-instance-id
-deploy/.last-instance-ip

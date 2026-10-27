@@ -4,7 +4,6 @@ import {
   FilmIcon,
   PaperClipIcon,
   PhotoIcon,
-  TrashIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 
@@ -187,22 +186,5 @@ export function AttachmentUploadZone({ onUpload, uploading, compact }: UploadPro
         }}
       />
     </div>
-  );
-}
-
-export function AttachmentListItem({
-  name,
-  onRemove,
-}: {
-  name: string;
-  onRemove: () => void;
-}) {
-  return (
-    <span className="inline-flex items-center gap-1 rounded-md bg-slate-100 py-0.5 pl-2 pr-1 text-xs text-slate-700">
-      {name}
-      <button type="button" onClick={onRemove} className="rounded p-0.5 hover:bg-slate-200">
-        <TrashIcon className="h-3 w-3" />
-      </button>
-    </span>
   );
 }

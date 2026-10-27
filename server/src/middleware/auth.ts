@@ -1,33 +1,30 @@
-import type { NextFunction, Request, Response } from 'express';
-import { prisma } from '../lib/prisma.js';
-import { AppError } from '../lib/errors.js';
+import { createMiddleware } from 'hono/factory';
+import type { User } from '../generated/prisma/client';
+import { AppError } from '../lib/errors';
+import { getDb } from '../lib/db';
+import { readSession } from '../lib/session';
+import type { AppEnv } from '../types';
 
-export async function loadUser(req: Request, _res: Response, next: NextFunction): Promise<void> {
-  try {
-    const userId = req.session.userId;
-    if (userId) {
-      const user = await prisma.user.findUnique({ where: { id: userId } });
-      if (user) req.user = user;
-    }
-    next();
-  } catch (err) {
-    next(err);
+/** Attaches the Prisma client and the signed-in (active) user, if any. */
+export const loadUser = createMiddleware<AppEnv>(async (c, next) => {
+  const db = getDb(c.env.DB);
+  c.set('db', db);
+  const userId = await readSession(c);
+  if (userId) {
+    const user = await db.user.findUnique({ where: { id: userId } });
+    if (user?.isActive) c.set('user', user);
   }
-}
+  await next();
+});
 
-export function requireAuth(req: Request, _res: Response, next: NextFunction): void {
-  if (!req.user) {
-    throw new AppError(401, 'Authentication required', 'UNAUTHENTICATED');
-  }
-  next();
-}
+export const requireAuth = createMiddleware<AppEnv & { Variables: { user: User } }>(async (c, next) => {
+  if (!c.get('user')) throw new AppError(401, 'Authentication required', 'UNAUTHENTICATED');
+  await next();
+});
 
-export function requireAdmin(req: Request, _res: Response, next: NextFunction): void {
-  if (!req.user) {
-    throw new AppError(401, 'Authentication required', 'UNAUTHENTICATED');
-  }
-  if (req.user.role !== 'admin') {
-    throw new AppError(403, 'Admin access required', 'FORBIDDEN');
-  }
-  next();
-}
+export const requireAdmin = createMiddleware<AppEnv & { Variables: { user: User } }>(async (c, next) => {
+  const user = c.get('user');
+  if (!user) throw new AppError(401, 'Authentication required', 'UNAUTHENTICATED');
+  if (user.role !== 'admin') throw new AppError(403, 'Admin access required', 'FORBIDDEN');
+  await next();
+});

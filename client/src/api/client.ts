@@ -27,6 +27,23 @@ function maybeSuppressTaskNotification(path: string, method: string | undefined)
   if (path.startsWith('/tasks')) suppressTaskNotifications();
 }
 
+const UPLOAD_CONCURRENCY = 4;
+
+async function runLimited<T>(
+  items: T[],
+  limit: number,
+  fn: (item: T, index: number) => Promise<void>
+): Promise<void> {
+  let next = 0;
+  const worker = async () => {
+    while (next < items.length) {
+      const i = next++;
+      await fn(items[i], i);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(limit, items.length) }, worker));
+}
+
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
   const method = options.method?.toUpperCase();
   const res = await fetch(`${BASE}${path}`, {
@@ -42,7 +59,9 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 
   const data = await res.json().catch(() => ({}));
   if (!res.ok) {
-    throw new ApiError(res.status, data?.error ?? 'Request failed', data?.code);
+    const err = data?.error;
+    const message = typeof err === 'string' ? err : err?.message ?? 'Request failed';
+    throw new ApiError(res.status, message, data?.code ?? err?.code);
   }
   maybeSuppressTaskNotification(path, method);
   return data as T;
@@ -51,16 +70,11 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
 export const api = {
   // auth
   getConfig: () => request<AppConfig>('/auth/config'),
-  me: () => request<{ user: User }>('/auth/me').then((r) => r.user),
+  me: () => request<{ user: User | null }>('/auth/me').then((r) => r.user),
   login: (email: string, password: string) =>
     request<{ user: User }>('/auth/login', {
       method: 'POST',
       body: JSON.stringify({ email, password }),
-    }).then((r) => r.user),
-  signup: (email: string, name: string, password: string) =>
-    request<{ user: User }>('/auth/signup', {
-      method: 'POST',
-      body: JSON.stringify({ email, name, password }),
     }).then((r) => r.user),
   logout: () => request<{ ok: true }>('/auth/logout', { method: 'POST' }),
   verifyMagicLink: (token: string) =>
@@ -81,12 +95,12 @@ export const api = {
   listUsers: () => request<{ users: User[] }>('/users').then((r) => r.users),
   listAssignableUsers: () =>
     request<{ users: User[] }>('/users/assignable').then((r) => r.users),
-  createUser: (input: { email: string; name: string; role?: string }) =>
+  createUser: (input: { email: string; name: string; role?: string; team?: string }) =>
     request<{ user: User; inviteUrl: string }>('/users', {
       method: 'POST',
       body: JSON.stringify(input),
     }),
-  updateUser: (id: string, input: { name?: string; role?: string; isActive?: boolean }) =>
+  updateUser: (id: string, input: { name?: string; role?: string; team?: string; isActive?: boolean }) =>
     request<{ user: User }>(`/users/${id}`, {
       method: 'PATCH',
       body: JSON.stringify(input),
@@ -105,9 +119,22 @@ export const api = {
     }).then((r) => r.project),
 
   // tasks
+  getTasksVersion: () =>
+    request<{ version: string }>('/tasks/version').then((r) => r.version),
   listTasks: (params: Record<string, string> = {}) => {
     const qs = new URLSearchParams(params).toString();
     return request<{ tasks: Task[] }>(`/tasks${qs ? `?${qs}` : ''}`).then((r) => r.tasks);
+  },
+  getTaskLeaderboard: (params: Record<string, string> = {}) => {
+    const qs = new URLSearchParams(params).toString();
+    return request<{
+      leaderboard: {
+        rank: number;
+        user: { id: string; name: string; email: string; team: string; avatarUrl?: string | null };
+        points: number;
+        completedTasks: number;
+      }[];
+    }>(`/tasks/points/leaderboard${qs ? `?${qs}` : ''}`).then((r) => r.leaderboard);
   },
   getTask: (id: string) => request<{ task: Task }>(`/tasks/${id}`).then((r) => r.task),
   createTask: (input: TaskInput) =>
@@ -135,24 +162,36 @@ export const api = {
   deleteComment: (taskId: string, commentId: string) =>
     request<{ ok: true }>(`/tasks/${taskId}/comments/${commentId}`, { method: 'DELETE' }),
 
-  // attachments
-  uploadAttachment: (taskId: string, file: File) => {
-    const form = new FormData();
-    form.append('file', file);
-    return request<{ attachment: Attachment; attachments?: Attachment[] }>(
-      `/tasks/${taskId}/attachments`,
-      { method: 'POST', body: form }
-    ).then((r) => r.attachment);
-  },
+  // attachments: files go straight to S3 via presigned URLs, then get recorded.
   uploadAttachments: async (taskId: string, files: File[]) => {
     if (files.length === 0) return [];
-    const form = new FormData();
-    for (const file of files) form.append('files', file);
-    const res = await request<{ attachments: Attachment[]; attachment?: Attachment }>(
-      `/tasks/${taskId}/attachments`,
-      { method: 'POST', body: form }
+    const meta = files.map((f) => ({
+      name: f.name,
+      type: f.type || 'application/octet-stream',
+      size: f.size,
+    }));
+    const { uploads } = await request<{ uploads: { storedName: string; uploadUrl: string }[] }>(
+      `/tasks/${taskId}/attachments/uploads`,
+      { method: 'POST', body: JSON.stringify({ files: meta }) }
     );
-    return res.attachments ?? (res.attachment ? [res.attachment] : []);
+    await runLimited(files, UPLOAD_CONCURRENCY, async (file, i) => {
+      const res = await fetch(uploads[i].uploadUrl, {
+        method: 'PUT',
+        headers: { 'Content-Type': meta[i].type },
+        body: file,
+      });
+      if (!res.ok) throw new ApiError(res.status, `Upload failed for "${file.name}"`);
+    });
+    const { attachments } = await request<{ attachments: Attachment[] }>(
+      `/tasks/${taskId}/attachments`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          files: meta.map((m, i) => ({ storedName: uploads[i].storedName, name: m.name, type: m.type })),
+        }),
+      }
+    );
+    return attachments;
   },
   deleteAttachment: (taskId: string, attachmentId: string) =>
     request<{ ok: true }>(`/tasks/${taskId}/attachments/${attachmentId}`, { method: 'DELETE' }),

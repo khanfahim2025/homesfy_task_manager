@@ -1,0 +1,7 @@
+# Local secrets for `npm run dev` (copy to .dev.vars). Production uses `wrangler secret put`.
+APP_URL=http://localhost:5173
+SESSION_SECRET=change-me-to-a-long-random-string
+AWS_ACCESS_KEY_ID=
+AWS_SECRET_ACCESS_KEY=
+# Optional: without it, emails are logged instead of sent.
+RESEND_API_KEY=

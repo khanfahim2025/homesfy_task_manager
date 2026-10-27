@@ -7,12 +7,16 @@ import {
   CheckCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
+  MoonIcon,
   QuestionMarkCircleIcon,
   RectangleStackIcon,
+  Squares2X2Icon,
+  SunIcon,
   UsersIcon,
   XMarkIcon,
 } from '@heroicons/react/24/outline';
 import { useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 import { getAvatarColor, getInitials } from '../lib/format';
 import { TaskNotificationWatcher } from './TaskNotificationWatcher';
 import { QuickTaskSearch } from './QuickTaskSearch';
@@ -23,6 +27,7 @@ type Icon = ComponentType<SVGProps<SVGSVGElement>>;
 
 export function Layout() {
   const { user, logout } = useAuth();
+  const { theme, toggleTheme } = useTheme();
   const navigate = useNavigate();
   const location = useLocation();
   const [mobileOpen, setMobileOpen] = useState(false);
@@ -117,10 +122,23 @@ export function Layout() {
         </div>
 
         <nav className={`sidebar-nav ${collapsed ? 'lg:px-2' : ''}`}>
-          {!collapsed && <p className="sidebar-section-label">Collaboration</p>}
-          {sidebarLink('/tasks', 'Tasks', RectangleStackIcon, isTasks)}
+          {!collapsed && <p className="sidebar-section-label">Workspace</p>}
+          {sidebarLink('/tasks', 'Tickets', RectangleStackIcon, isTasks)}
           {user?.role === 'admin' &&
-            sidebarLink('/admin/users', 'Users', UsersIcon, isAdminUsers)}
+            sidebarLink('/admin/users', 'Team', UsersIcon, isAdminUsers)}
+          {!collapsed && (
+            <div className="mt-5 rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white/75">
+                <Squares2X2Icon className="h-4 w-4 text-[#2fc6f6]" />
+                Workflows
+              </div>
+              <div className="space-y-1 text-[11px] text-white/45">
+                <p>Raise tickets</p>
+                <p>Assign owners</p>
+                <p>Track files, comments, due dates</p>
+              </div>
+            </div>
+          )}
         </nav>
 
         <div className={`sidebar-footer ${collapsed ? 'lg:sidebar-footer-collapsed lg:p-2' : ''}`}>
@@ -156,7 +174,7 @@ export function Layout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="z-10 flex h-14 shrink-0 items-center justify-between gap-2 border-b border-slate-200/60 bg-white/60 px-3 backdrop-blur-xl sm:px-4 lg:px-6">
+        <header className="app-header z-10 flex h-14 shrink-0 items-center justify-between gap-2 px-3 backdrop-blur-xl sm:px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
@@ -180,10 +198,10 @@ export function Layout() {
               )}
             </button>
             <NavLink
-              to="/tasks"
+              to={isAdminUsers ? '/admin/users' : '/tasks'}
               className="hidden truncate text-sm font-semibold text-slate-800 sm:inline"
             >
-              Tasks
+              {isAdminUsers ? 'Team' : 'Tickets'}
             </NavLink>
           </div>
 
@@ -191,17 +209,26 @@ export function Layout() {
             <QuickTaskSearch />
             <button
               type="button"
-              className="hidden rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-600 sm:inline-flex"
+              className="header-icon-btn hidden sm:inline-flex"
               title="Help"
             >
               <QuestionMarkCircleIcon className="h-5 w-5" />
             </button>
             <button
               type="button"
-              className="relative hidden rounded-xl p-2 text-slate-400 transition hover:bg-white hover:text-slate-600 sm:inline-flex"
+              className="header-icon-btn relative hidden sm:inline-flex"
               title="Notifications"
             >
               <BellIcon className="h-5 w-5" />
+            </button>
+            <button
+              type="button"
+              className="header-icon-btn"
+              onClick={toggleTheme}
+              title={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+              aria-label={theme === 'dark' ? 'Switch to light mode' : 'Switch to dark mode'}
+            >
+              {theme === 'dark' ? <SunIcon className="h-5 w-5" /> : <MoonIcon className="h-5 w-5" />}
             </button>
             <button
               type="button"

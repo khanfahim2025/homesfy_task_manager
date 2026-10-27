@@ -5,11 +5,7 @@ export default defineConfig({
   plugins: [react()],
   server: {
     port: 5173,
-    proxy: {
-      '/api': {
-        target: 'http://localhost:3001',
-        changeOrigin: true,
-      },
-    },
+    // `wrangler dev` (npm run dev -w server) serves the API on 8787.
+    proxy: { '/api': { target: 'http://localhost:8787', changeOrigin: false } },
   },
 });

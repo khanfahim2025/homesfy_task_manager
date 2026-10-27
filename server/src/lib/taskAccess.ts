@@ -1,49 +1,36 @@
-import type { Prisma, User } from '@prisma/client';
-import { prisma } from './prisma.js';
-import { AppError } from './errors.js';
+import type { Prisma, PrismaClient, User } from '../generated/prisma/client';
+import { AppError } from './errors';
 
-export function memberTaskVisibilityWhere(userId: string): Prisma.TaskWhereInput {
+export function memberTaskVisibilityWhere(user: User): Prisma.TaskWhereInput {
   return {
     OR: [
-      { creatorId: userId },
-      { assigneeId: userId },
-      { assignees: { some: { user_id: userId } } },
-      { observers: { some: { user_id: userId } } },
-      { participants: { some: { user_id: userId } } },
+      { team: user.team },
+      { creatorId: user.id },
+      { assigneeId: user.id },
+      { assignees: { some: { user_id: user.id } } },
+      { observers: { some: { user_id: user.id } } },
+      { participants: { some: { user_id: user.id } } },
     ],
   };
 }
 
-export function canAccessTask(user: User, task: { creatorId: string }): boolean {
-  if (user.role === 'admin') return true;
-  return task.creatorId === user.id;
+export function canManageTeam(user: User, team: string): boolean {
+  return user.role === 'admin' || (user.role === 'manager' && user.team === team);
 }
 
-export async function assertTaskAccess(user: User, taskId: string): Promise<void> {
-  if (user.role === 'admin') return;
-
-  const task = await prisma.task.findFirst({
-    where: { id: taskId, ...memberTaskVisibilityWhere(user.id) },
-    select: { id: true },
-  });
-
-  if (!task) {
-    throw new AppError(403, 'You do not have access to this task', 'FORBIDDEN');
-  }
+export async function assertTaskAccess(db: PrismaClient, user: User, taskId: string): Promise<void> {
+  const where: Prisma.TaskWhereInput =
+    user.role === 'admin' ? { id: taskId } : { id: taskId, ...memberTaskVisibilityWhere(user) };
+  const task = await db.task.findFirst({ where, select: { id: true } });
+  if (!task) throw new AppError(404, 'Task not found', 'NOT_FOUND');
 }
 
-export async function assertTaskDeleteAccess(
-  user: User,
-  taskId: string
-): Promise<{ creatorId: string }> {
-  const task = await prisma.task.findUniqueOrThrow({
+export async function assertTaskDeleteAccess(db: PrismaClient, user: User, taskId: string): Promise<void> {
+  const task = await db.task.findUniqueOrThrow({
     where: { id: taskId },
-    select: { creatorId: true },
+    select: { creatorId: true, team: true },
   });
-
-  if (user.role !== 'admin' && task.creatorId !== user.id) {
+  if (!canManageTeam(user, task.team) && task.creatorId !== user.id) {
     throw new AppError(403, 'You cannot delete this task', 'FORBIDDEN');
   }
-
-  return task;
 }

@@ -1,7 +1,8 @@
-export type Role = 'admin' | 'member';
+export type Role = 'admin' | 'manager' | 'member';
+export type Team = 'tech' | 'digital';
 export type TaskStatus = 'new' | 'assigned' | 'accepted' | 'in_progress' | 'done' | 'closed';
 export type TaskPriority = 'low' | 'medium' | 'high';
-export type TaskCategory = 'website_development' | 'creative' | 'content_creation';
+export type TaskCategory = 'general' | 'website_development' | 'creative' | 'content_creation';
 export type AttachmentType = 'image' | 'document' | 'link' | 'video' | 'archive';
 
 export interface User {
@@ -9,6 +10,7 @@ export interface User {
   email: string;
   name: string;
   role: Role;
+  team: Team;
   avatarUrl?: string | null;
   isActive?: boolean;
   createdAt?: string;
@@ -56,6 +58,8 @@ export interface Task {
   status: TaskStatus;
   priority: TaskPriority;
   category: TaskCategory;
+  team: Team;
+  effortPoints: number;
   dueDate: string | null;
   completedAt: string | null;
   closedAt: string | null;
@@ -89,6 +93,8 @@ export interface TaskInput {
   status?: TaskStatus;
   priority?: TaskPriority;
   category?: TaskCategory;
+  team?: Team;
+  effortPoints?: number;
   dueDate?: string | null;
   projectId?: string | null;
   assigneeId?: string | null;
@@ -106,6 +112,5 @@ export interface TaskInput {
 }
 
 export interface AppConfig {
-  allowSignup: boolean;
   allowedEmailDomain: string | null;
 }

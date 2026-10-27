@@ -1,4 +1,4 @@
-import type { TaskCategory, TaskPriority, TaskStatus } from '../types';
+import type { TaskCategory, TaskPriority, TaskStatus, Team } from '../types';
 
 export const STATUS_LABELS: Record<TaskStatus, string> = {
   new: 'New',
@@ -44,6 +44,7 @@ export const PRIORITY_LABELS: Record<TaskPriority, string> = {
 };
 
 export const CATEGORY_LABELS: Record<TaskCategory, string> = {
+  general: 'General Task',
   website_development: 'Website Development',
   creative: 'Creative',
   content_creation: 'Content Creation',
@@ -53,31 +54,28 @@ export function isWebsiteCategory(category: TaskCategory): boolean {
   return category === 'website_development';
 }
 
-export const STATUS_STYLES: Record<TaskStatus, string> = {
-  new: 'bg-slate-100 text-slate-600',
-  assigned: 'bg-violet-100 text-violet-700',
-  accepted: 'bg-sky-100 text-sky-700',
-  in_progress: 'bg-blue-100 text-blue-700',
-  done: 'bg-emerald-100 text-emerald-700',
-  closed: 'bg-slate-800 text-white ring-1 ring-slate-600',
+export const TEAM_LABELS: Record<Team, string> = {
+  tech: 'Tech Team',
+  digital: 'Digital Team',
 };
 
-/** Kanban column header accent colors (Bitrix-style) */
-export const STATUS_COLUMN_COLORS: Record<TaskStatus, string> = {
-  new: 'bg-slate-400',
-  assigned: 'bg-violet-500',
-  accepted: 'bg-sky-500',
-  in_progress: 'bg-blue-500',
-  done: 'bg-emerald-500',
-  closed: 'bg-slate-500',
+export const TEAM_ORDER: Team[] = ['tech', 'digital'];
+
+export const STATUS_STYLES: Record<TaskStatus, string> = {
+  new: 'bg-slate-100 text-slate-600',
+  assigned: 'bg-[#2fc6f6]/10 text-[#137fa8] ring-1 ring-[#2fc6f6]/15',
+  accepted: 'bg-[#2fc6f6]/10 text-[#137fa8] ring-1 ring-[#2fc6f6]/15',
+  in_progress: 'bg-[#2fc6f6]/15 text-[#0f7698] ring-1 ring-[#2fc6f6]/20',
+  done: 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-100',
+  closed: 'bg-[#121826] text-white ring-1 ring-[#090d18]',
 };
 
 export const KANBAN_COLUMN_COLORS: Record<KanbanColumnId, string> = {
-  new: 'bg-slate-400',
-  assigned: 'bg-violet-500',
-  due: 'bg-amber-500',
+  new: 'bg-slate-500',
+  assigned: 'bg-[#2fc6f6]',
+  due: 'bg-[#1595c0]',
   done: 'bg-emerald-500',
-  closed: 'bg-slate-500',
+  closed: 'bg-[#121826]',
 };
 
 const AVATAR_COLORS = [
@@ -106,18 +104,9 @@ export function getAvatarColor(name: string): string {
 
 export const PRIORITY_STYLES: Record<TaskPriority, string> = {
   low: 'bg-slate-100 text-slate-600',
-  medium: 'bg-amber-100 text-amber-700',
+  medium: 'bg-[#2fc6f6]/10 text-[#137fa8]',
   high: 'bg-red-100 text-red-700',
 };
-
-export function formatDate(value: string | null | undefined): string {
-  if (!value) return '—';
-  return new Date(value).toLocaleDateString(undefined, {
-    year: 'numeric',
-    month: 'short',
-    day: 'numeric',
-  });
-}
 
 /** Due date + time in 12-hour format. */
 export function formatDueDateTime(value: string | null | undefined): string {
@@ -193,14 +182,9 @@ export function formatDateTime(value: string | null | undefined): string {
 }
 
 /** YYYY-MM-DD for `<input type="date">` */
-export function toDateInputValue(value: string | null | undefined): string {
+function toDateInputValue(value: string | null | undefined): string {
   if (!value) return '';
   return value.slice(0, 10);
-}
-
-/** Parse date-only input to ISO at 12:00 PM local. */
-export function dateInputToIso(value: string): string {
-  return dueDateTimeToIso({ date: value, hour12: '12', minute: '00', meridiem: 'PM' })!;
 }
 
 export function isOverdue(task: { dueDate: string | null; status: TaskStatus }): boolean {
