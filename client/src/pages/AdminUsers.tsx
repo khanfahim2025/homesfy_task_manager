@@ -27,7 +27,7 @@ function RoleBadge({ role }: { role: Role }) {
         isAdmin
           ? 'bg-[#2fc6f6]/10 text-[#137fa8] ring-1 ring-[#2fc6f6]/15'
           : isManager
-            ? 'bg-[#121826]/5 text-[#121826] ring-1 ring-slate-200/80'
+            ? 'bg-[#121826]/5 text-[#121826] ring-1 ring-slate-200/80 dark:bg-white/10 dark:text-slate-100 dark:ring-white/20'
           : 'bg-slate-100 text-slate-600 ring-1 ring-slate-200/80'
       }`}
     >
@@ -75,7 +75,7 @@ function StatCard({
     default: 'bg-slate-50 text-slate-600',
     cyan: 'bg-[#2fc6f6]/10 text-[#1a8fb8]',
     green: 'bg-emerald-50 text-emerald-600',
-    indigo: 'bg-[#121826]/5 text-[#121826]',
+    indigo: 'bg-[#121826]/5 text-[#121826] dark:bg-white/10 dark:text-slate-100',
   };
 
   return (
