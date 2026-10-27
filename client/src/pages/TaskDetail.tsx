@@ -136,8 +136,6 @@ export function TaskDetail() {
 
   const canDelete = user?.role === 'admin' || user?.id === task.creatorId;
   const assignees = task.assignees ?? (task.assignee ? [task.assignee] : []);
-  // Admins can be added to any team's task.
-  const teamUsers = users.filter((u) => u.team === task.team || u.role === 'admin');
 
   return (
     <div className="page-shell overflow-y-auto">
@@ -420,7 +418,7 @@ export function TaskDetail() {
             <div className="space-y-4">
               <UserMultiSelect
                 label="Assignees"
-                users={teamUsers}
+                users={users}
                 value={assigneeIds}
                 onChange={(ids) => {
                   setAssigneeIds(ids);
@@ -429,7 +427,7 @@ export function TaskDetail() {
               />
               <UserMultiSelect
                 label="Observers"
-                users={teamUsers}
+                users={users}
                 value={observerIds}
                 onChange={(ids) => {
                   setObserverIds(ids);
@@ -438,7 +436,7 @@ export function TaskDetail() {
               />
               <UserMultiSelect
                 label="Participants"
-                users={teamUsers}
+                users={users}
                 value={participantIds}
                 onChange={(ids) => {
                   setParticipantIds(ids);

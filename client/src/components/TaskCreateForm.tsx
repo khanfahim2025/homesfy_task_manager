@@ -103,8 +103,6 @@ export function TaskCreateForm({
   const showWebsiteDetails = isWebsiteCategory(form.category ?? 'website_development');
   const showBriefDetails = form.category === 'creative' || form.category === 'content_creation';
   const selectedTeam = (form.team ?? user?.team ?? 'tech') as Team;
-  // Admins can be added to any team's task.
-  const teamUsers = users.filter((u) => u.team === selectedTeam || u.role === 'admin');
   const isNew = submitLabel === 'Create task';
   const submitText = isNew ? 'Create ticket' : submitLabel;
   const canManagePoints = user?.role === 'admin' || user?.role === 'manager';
@@ -442,26 +440,26 @@ export function TaskCreateForm({
           <PanelTitle
             icon={UsersIcon}
             title="People"
-            description={`Only ${TEAM_LABELS[selectedTeam]} members and admins are shown here.`}
+            description="Anyone in the company can be added, from any team."
           />
           <UserMultiSelect
             label="Assignees"
             hint="People responsible for completing this task"
-            users={teamUsers}
+            users={users}
             value={form.assigneeIds ?? []}
             onChange={(ids) => set('assigneeIds', ids)}
           />
           <UserMultiSelect
             label="Observers"
             hint="People who follow updates on this task"
-            users={teamUsers}
+            users={users}
             value={form.observerIds ?? []}
             onChange={(ids) => set('observerIds', ids)}
           />
           <UserMultiSelect
             label="Participants"
             hint="People involved in working on this task"
-            users={teamUsers}
+            users={users}
             value={form.participantIds ?? []}
             onChange={(ids) => set('participantIds', ids)}
           />
