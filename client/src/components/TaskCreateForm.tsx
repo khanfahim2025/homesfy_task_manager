@@ -103,7 +103,8 @@ export function TaskCreateForm({
   const showWebsiteDetails = isWebsiteCategory(form.category ?? 'website_development');
   const showBriefDetails = form.category === 'creative' || form.category === 'content_creation';
   const selectedTeam = (form.team ?? user?.team ?? 'tech') as Team;
-  const teamUsers = users.filter((u) => u.team === selectedTeam);
+  // Admins can be added to any team's task.
+  const teamUsers = users.filter((u) => u.team === selectedTeam || u.role === 'admin');
   const isNew = submitLabel === 'Create task';
   const submitText = isNew ? 'Create ticket' : submitLabel;
   const canManagePoints = user?.role === 'admin' || user?.role === 'manager';
@@ -441,7 +442,7 @@ export function TaskCreateForm({
           <PanelTitle
             icon={UsersIcon}
             title="People"
-            description={`Only ${TEAM_LABELS[selectedTeam]} members are shown here.`}
+            description={`Only ${TEAM_LABELS[selectedTeam]} members and admins are shown here.`}
           />
           <UserMultiSelect
             label="Assignees"

@@ -22,7 +22,7 @@ const select = {
 usersRouter.get('/assignable', async (c) => {
   const users = await c.var.db.user.findMany({
     where: { isActive: true },
-    select: { id: true, name: true, email: true, team: true, avatarUrl: true },
+    select: { id: true, name: true, email: true, role: true, team: true, avatarUrl: true },
     orderBy: { name: 'asc' },
   });
   return c.json({ users });

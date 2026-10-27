@@ -136,7 +136,8 @@ export function TaskDetail() {
 
   const canDelete = user?.role === 'admin' || user?.id === task.creatorId;
   const assignees = task.assignees ?? (task.assignee ? [task.assignee] : []);
-  const teamUsers = users.filter((u) => u.team === task.team);
+  // Admins can be added to any team's task.
+  const teamUsers = users.filter((u) => u.team === task.team || u.role === 'admin');
 
   return (
     <div className="page-shell overflow-y-auto">
