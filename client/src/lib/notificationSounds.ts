@@ -93,6 +93,9 @@ export function playNotificationSound(kind: NotificationSound): void {
 }
 
 export async function playNotificationSounds(kinds: NotificationSound[]): Promise<void> {
+  // Until the page has had a click or key press the browser keeps audio locked.
+  // Skip rather than queue, so old sounds don't all burst out on the next click.
+  if (ctx()?.state !== 'running') return;
   // Several events at once still make one sound, plus the due-soon alert if any.
   const unique = [...new Set(kinds.map((k) => (k === 'dueSoon' ? k : 'content')))];
   for (let i = 0; i < unique.length; i++) {

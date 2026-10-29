@@ -2,7 +2,6 @@ import { useCallback, useEffect, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Task } from '../types';
 import { api } from '../api/client';
-import { areTaskNotificationsSuppressed } from '../lib/notificationSuppress';
 import {
   buildSnapshotMap,
   detectDueSoonTasks,
@@ -16,26 +15,6 @@ import { addNotifications, loadNotifications, type AppNotification } from '../li
 
 const POLL_MS = 8_000;
 const DUE_SOON_CHECK_MS = 30_000;
-const DUE_SOON_STORAGE_KEY = 'taskmanager:dueSoonNotified';
-
-function loadDueSoonNotified(): Set<string> {
-  try {
-    const raw = sessionStorage.getItem(DUE_SOON_STORAGE_KEY);
-    if (!raw) return new Set();
-    return new Set(JSON.parse(raw) as string[]);
-  } catch {
-    return new Set();
-  }
-}
-
-function saveDueSoonNotified(keys: Set<string>): void {
-  try {
-    sessionStorage.setItem(DUE_SOON_STORAGE_KEY, JSON.stringify([...keys]));
-  } catch {
-    // ignore quota errors
-  }
-}
-
 // The last seen task state is kept per user, so changes made while the app was
 // closed still show up in the bell on the next visit (without a sound).
 function snapshotKey(userId: string): string {
@@ -59,12 +38,11 @@ function saveSnapshot(userId: string, snapshot: Map<string, TaskWatchSnapshot>):
   }
 }
 
-type NewNotification = Omit<AppNotification, 'id' | 'read'>;
+type NewNotification = Omit<AppNotification, 'read'>;
 
 export function useTaskNotifications(userId: string | undefined): void {
   const snapshotRef = useRef<Map<string, TaskWatchSnapshot> | null>(null);
   const readyRef = useRef(false);
-  const dueSoonNotifiedRef = useRef<Set<string>>(loadDueSoonNotified());
   const tasksRef = useRef<Task[]>([]);
   const qc = useQueryClient();
 
@@ -127,9 +105,10 @@ export function useTaskNotifications(userId: string | undefined): void {
   }, [qc, userId]);
 
   const notify = useCallback((added: NewNotification[], withSound: boolean) => {
-    addNotifications(added);
+    // Only events no tab has recorded yet are added, and only those ring.
+    const fresh = addNotifications(added);
     if (!withSound) return;
-    const ordered = sortNotificationSounds(added.map((n) => n.kind));
+    const ordered = sortNotificationSounds(fresh.map((n) => n.kind));
     if (ordered.length > 0) {
       void playNotificationSounds(ordered);
     }
@@ -137,12 +116,12 @@ export function useTaskNotifications(userId: string | undefined): void {
 
   const checkDueSoon = useCallback(
     (taskList: Task[]) => {
-      if (!userId || areTaskNotificationsSuppressed()) return;
-      const due = detectDueSoonTasks(taskList, userId, dueSoonNotifiedRef.current);
+      if (!userId) return;
+      const due = detectDueSoonTasks(taskList, userId);
       if (due.length === 0) return;
-      saveDueSoonNotified(dueSoonNotifiedRef.current);
       notify(
         due.map((t) => ({
+          id: `due|${t.id}|${t.dueDate}`,
           taskId: t.id,
           taskTitle: t.title,
           text: 'Due in 5 minutes',
@@ -175,13 +154,21 @@ export function useTaskNotifications(userId: string | undefined): void {
     snapshotRef.current = current;
     saveSnapshot(userId, current);
 
-    if (!previous || areTaskNotificationsSuppressed()) return;
+    if (!previous) return;
 
     const now = Date.now();
     const added: NewNotification[] = [];
     for (const task of tasks) {
       for (const event of detectTaskEvents(previous.get(task.id), task, userId)) {
-        added.push({ taskId: task.id, taskTitle: task.title, text: event.text, kind: event.kind, at: now });
+        added.push({
+          // Same task version + same event = same id in every tab.
+          id: `${task.id}|${task.updatedAt}|${event.text}`,
+          taskId: task.id,
+          taskTitle: task.title,
+          text: event.text,
+          kind: event.kind,
+          at: now,
+        });
       }
     }
     notify(added, !firstLoad);

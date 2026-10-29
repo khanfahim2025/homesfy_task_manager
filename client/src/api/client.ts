@@ -7,7 +7,6 @@ import type {
   TaskInput,
   User,
 } from '../types';
-import { suppressTaskNotifications } from '../lib/notificationSuppress';
 
 const BASE = '/api';
 
@@ -20,11 +19,6 @@ export class ApiError extends Error {
     super(message);
     this.name = 'ApiError';
   }
-}
-
-function maybeSuppressTaskNotification(path: string, method: string | undefined): void {
-  if (!method || method === 'GET') return;
-  if (path.startsWith('/tasks')) suppressTaskNotifications();
 }
 
 const UPLOAD_CONCURRENCY = 4;
@@ -45,7 +39,6 @@ async function runLimited<T>(
 }
 
 async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
-  const method = options.method?.toUpperCase();
   const res = await fetch(`${BASE}${path}`, {
     credentials: 'include',
     headers:
@@ -63,7 +56,6 @@ async function request<T>(path: string, options: RequestInit = {}): Promise<T> {
     const message = typeof err === 'string' ? err : err?.message ?? 'Request failed';
     throw new ApiError(res.status, message, data?.code ?? err?.code);
   }
-  maybeSuppressTaskNotification(path, method);
   return data as T;
 }
 

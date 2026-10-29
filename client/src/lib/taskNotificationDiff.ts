@@ -90,11 +90,6 @@ export function isTaskDueSoon(task: Task, now = Date.now()): boolean {
   return diff > 0 && diff <= DUE_SOON_MS;
 }
 
-export function dueSoonStorageKey(task: Task): string | null {
-  if (!task.dueDate) return null;
-  return `${task.id}:${task.dueDate}`;
-}
-
 export interface TaskEvent {
   kind: NotificationSound;
   text: string;
@@ -110,20 +105,9 @@ function hasContentChange(prev: TaskWatchSnapshot, next: TaskWatchSnapshot): boo
   );
 }
 
-export function detectDueSoonTasks(
-  tasks: Task[],
-  userId: string,
-  alreadyNotified: Set<string>
-): Task[] {
-  const due: Task[] = [];
-  for (const task of tasks) {
-    if (!isUserInvolvedInTask(task, userId) || !isTaskDueSoon(task)) continue;
-    const key = dueSoonStorageKey(task);
-    if (!key || alreadyNotified.has(key)) continue;
-    due.push(task);
-    alreadyNotified.add(key);
-  }
-  return due;
+/** Tasks you're on that are due within 5 minutes (the store skips ones already alerted). */
+export function detectDueSoonTasks(tasks: Task[], userId: string): Task[] {
+  return tasks.filter((task) => isUserInvolvedInTask(task, userId) && isTaskDueSoon(task));
 }
 
 const SOUND_PRIORITY: Record<NotificationSound, number> = {
@@ -136,6 +120,10 @@ const SOUND_PRIORITY: Record<NotificationSound, number> = {
 };
 
 /** What changed on a task since the last snapshot, for a user involved in it. */
+/**
+ * What changed on a task since the last snapshot, for a user involved in it.
+ * Changes the user made themselves (on any device) are never reported.
+ */
 export function detectTaskEvents(
   prev: TaskWatchSnapshot | undefined,
   task: Task,
@@ -144,27 +132,36 @@ export function detectTaskEvents(
   if (!isUserInvolvedInTask(task, userId)) return [];
 
   const last = task.lastComment;
-  const tagged = last && last.authorId !== userId && mentionsUser(last.body, userId);
-  // Tagging someone adds them to the task, so for them it shows up as new.
+  const commentByOther = Boolean(last && last.authorId !== userId);
+  const tagged = Boolean(last && commentByOther && mentionsUser(last.body, userId));
+
+  // A task new to this user: created with them on it, or they were tagged into it.
   if (!prev) {
-    if (tagged) return [{ kind: 'assigned', text: `${last.author.name} mentioned you` }];
-    const creator = task.creator?.name;
-    return [{ kind: 'created', text: creator ? `${creator} created this task` : 'New task' }];
+    if (tagged) return [{ kind: 'assigned', text: `${last!.author.name} mentioned you` }];
+    if (task.creatorId === userId) return [];
+    const creator = task.creator?.name ?? 'Someone';
+    const assigned = taskWatchSnapshot(task).assigneeIds.includes(userId);
+    return [
+      {
+        kind: 'created',
+        text: assigned ? `${creator} assigned you a new task` : `${creator} added you to a new task`,
+      },
+    ];
   }
 
   const next = taskWatchSnapshot(task);
   const events: TaskEvent[] = [];
   const newComment = next.commentCount > prev.commentCount;
-  // The latest change is yours (e.g. from another device): nothing to tell you.
-  const byMe = task.updatedById === userId;
+  // updatedBy is whoever made the latest change; if that's this user, stay quiet.
+  const byOther = task.updatedById !== userId;
   const actor = task.updatedBy?.name ?? 'Someone';
 
   if (newComment && tagged) {
-    events.push({ kind: 'assigned', text: `${last.author.name} mentioned you` });
-  } else if (wasNewlyConnected(prev, next, userId)) {
+    events.push({ kind: 'assigned', text: `${last!.author.name} mentioned you` });
+  } else if (byOther && wasNewlyConnected(prev, next, userId)) {
     events.push({ kind: 'assigned', text: `${actor} added you to this task` });
   }
-  if (prev.status !== next.status && !byMe) {
+  if (byOther && prev.status !== next.status) {
     if (next.status === 'closed') {
       events.push({ kind: 'closed', text: `${actor} closed this task` });
     } else if (next.status === 'done') {
@@ -173,10 +170,10 @@ export function detectTaskEvents(
       events.push({ kind: 'content', text: `${actor} changed status to ${STATUS_LABELS[next.status]}` });
     }
   }
-  if (newComment && !tagged) {
-    events.push({ kind: 'content', text: last ? `New comment from ${last.author.name}` : 'New comment' });
+  if (newComment && commentByOther && !tagged) {
+    events.push({ kind: 'content', text: `New comment from ${last!.author.name}` });
   }
-  if (next.dueDate !== prev.dueDate && !byMe) {
+  if (byOther && next.dueDate !== prev.dueDate) {
     events.push({
       kind: 'content',
       text: next.dueDate
@@ -184,10 +181,10 @@ export function detectTaskEvents(
         : `${actor} removed the deadline`,
     });
   }
-  if (next.attachmentCount > prev.attachmentCount && !byMe) {
+  if (byOther && next.attachmentCount > prev.attachmentCount) {
     events.push({ kind: 'content', text: `${actor} added an attachment` });
   }
-  if (hasContentChange(prev, next) && !byMe) {
+  if (byOther && hasContentChange(prev, next)) {
     events.push({ kind: 'content', text: `${actor} updated the task details` });
   }
   return events;
