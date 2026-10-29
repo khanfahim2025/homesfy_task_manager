@@ -1,10 +1,10 @@
 import type { Prisma, PrismaClient, User } from '../generated/prisma/client';
 import { AppError } from './errors';
 
+// Non-admins only see tasks they are part of; admins see everything.
 export function memberTaskVisibilityWhere(user: User): Prisma.TaskWhereInput {
   return {
     OR: [
-      { team: user.team },
       { creatorId: user.id },
       { assigneeId: user.id },
       { assignees: { some: { user_id: user.id } } },

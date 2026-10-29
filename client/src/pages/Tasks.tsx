@@ -432,7 +432,7 @@ export function Tasks() {
                   <h1 className="text-lg font-bold tracking-tight text-slate-950">Tickets</h1>
                   <span className="inline-flex items-center gap-1.5 rounded-md border border-slate-200 bg-white px-2 py-1 text-[11px] font-semibold text-slate-500">
                     <UsersIcon className="h-3.5 w-3.5" />
-                    {user?.role === 'admin' ? 'All teams' : TEAM_LABELS[user?.team ?? 'tech']}
+                    {user?.role === 'admin' ? 'All teams' : 'My tasks'}
                   </span>
                 </div>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2 text-xs text-slate-500">
