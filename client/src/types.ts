@@ -66,6 +66,9 @@ export interface Task {
   projectId: string;
   assigneeId: string | null;
   creatorId: string;
+  /** Who made the latest change. */
+  updatedById?: string | null;
+  updatedBy?: { id: string; name: string } | null;
   domainName: string | null;
   templateUrl: string | null;
   docFileLink: string | null;

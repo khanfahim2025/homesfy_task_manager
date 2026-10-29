@@ -172,7 +172,10 @@ tasksRouter.patch('/:id', async (c) => {
     include: { assignees: { select: { user_id: true } } },
   });
 
-  const data: Prisma.TaskUpdateInput = buildMemberUpdateData(input);
+  const data: Prisma.TaskUpdateInput = {
+    ...buildMemberUpdateData(input),
+    updatedBy: { connect: { id: user.id } },
+  };
   if (input.title !== undefined) data.title = input.title;
   if (input.priority !== undefined) data.priority = input.priority;
   if (input.category !== undefined) data.category = input.category;
@@ -206,13 +209,17 @@ tasksRouter.patch('/:id', async (c) => {
 });
 
 tasksRouter.patch('/:id/status', async (c) => {
-  const { db } = c.var;
+  const { db, user } = c.var;
   const id = c.req.param('id');
   const { status } = statusSchema.parse(await c.req.json());
   const existing = await db.task.findUniqueOrThrow({ where: { id } });
   const task = await db.task.update({
     where: { id },
-    data: { status, ...timestampsForStatusChange(existing.status, status, existing) },
+    data: {
+      status,
+      ...timestampsForStatusChange(existing.status, status, existing),
+      updatedById: user.id,
+    },
     include: taskInclude,
   });
   if (task.status === 'done' || task.status === 'closed') {

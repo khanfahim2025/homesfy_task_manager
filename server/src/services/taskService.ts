@@ -13,6 +13,7 @@ export const taskInclude = {
   project: true,
   assignee: userMemberSelect,
   creator: userMemberSelect,
+  updatedBy: { select: { id: true, name: true } },
   assignees: { include: { users: userMemberSelect } },
   observers: { include: { users: userMemberSelect } },
   participants: { include: { users: userMemberSelect } },
@@ -130,8 +131,12 @@ export async function attachmentFolder(db: PrismaClient, taskId: string): Promis
 }
 
 /** Bumps updatedAt so clients polling /tasks/version notice comment/attachment changes. */
-export async function touchTask(db: PrismaClient, taskId: string): Promise<void> {
-  await db.task.update({ where: { id: taskId }, data: { updatedAt: new Date() }, select: { id: true } });
+export async function touchTask(db: PrismaClient, taskId: string, userId: string): Promise<void> {
+  await db.task.update({
+    where: { id: taskId },
+    data: { updatedAt: new Date(), updatedById: userId },
+    select: { id: true },
+  });
 }
 
 /** Emails users newly assigned to a task (never the person who assigned them). */

@@ -83,7 +83,7 @@ taskAttachmentsRouter.post('/', async (c) => {
       })
     )
   );
-  await touchTask(c.var.db, taskId);
+  await touchTask(c.var.db, taskId, c.var.user.id);
   return c.json({ attachments }, 201);
 });
 
@@ -94,7 +94,7 @@ taskAttachmentsRouter.delete('/:attachmentId', async (c) => {
   });
   await c.var.db.attachment.delete({ where: { id: attachment.id } });
   c.executionCtx.waitUntil(deleteObject(c.env, attachment.fileUrl));
-  await touchTask(c.var.db, taskId);
+  await touchTask(c.var.db, taskId, c.var.user.id);
   return c.json({ ok: true });
 });
 

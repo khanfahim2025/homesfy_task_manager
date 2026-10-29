@@ -26,7 +26,7 @@ commentsRouter.post('/', async (c) => {
     include: { author },
   });
   const mentions = await handleMentions(c.var.db, c.env, taskId, body, c.var.user);
-  await touchTask(c.var.db, taskId);
+  await touchTask(c.var.db, taskId, c.var.user.id);
   c.executionCtx.waitUntil(mentions.notify());
   return c.json({ comment }, 201);
 });
@@ -40,6 +40,6 @@ commentsRouter.delete('/:commentId', async (c) => {
     throw new AppError(403, 'You can only delete your own comments', 'FORBIDDEN');
   }
   await c.var.db.comment.delete({ where: { id: comment.id } });
-  await touchTask(c.var.db, taskId);
+  await touchTask(c.var.db, taskId, c.var.user.id);
   return c.json({ ok: true });
 });

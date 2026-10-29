@@ -37,7 +37,7 @@ function tone(
 export type NotificationSound = 'created' | 'content' | 'assigned' | 'dueSoon' | 'done' | 'closed';
 
 /** One soft marimba-like note: quick attack, short ring, a touch of overtone. */
-function pop(frequency: number, start: number, volume = 0.22): void {
+function pop(frequency: number, start: number, volume = 0.5): void {
   const ac = ctx();
   if (!ac) return;
   const gain = ac.createGain();
@@ -74,9 +74,9 @@ function playDueSoonSound(): void {
   const ac = ctx();
   if (!ac) return;
   const t = ac.currentTime;
-  tone(880, t, 0.08, 0.12);
-  tone(880, t + 0.14, 0.08, 0.12);
-  tone(988, t + 0.28, 0.12, 0.11);
+  tone(880, t, 0.08, 0.28);
+  tone(880, t + 0.14, 0.08, 0.28);
+  tone(988, t + 0.28, 0.12, 0.25);
 }
 
 const PLAYERS: Record<NotificationSound, () => void> = {

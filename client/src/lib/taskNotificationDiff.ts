@@ -148,30 +148,40 @@ export function detectTaskEvents(
   const tagged = last && last.authorId !== userId && mentionsUser(last.body, userId);
   // Tagging someone adds them to the task, so for them it shows up as new.
   if (!prev) {
-    return [tagged ? { kind: 'assigned', text: `${last.author.name} mentioned you` } : { kind: 'created', text: 'New task' }];
+    if (tagged) return [{ kind: 'assigned', text: `${last.author.name} mentioned you` }];
+    const creator = task.creator?.name;
+    return [{ kind: 'created', text: creator ? `${creator} created this task` : 'New task' }];
   }
 
   const next = taskWatchSnapshot(task);
   const events: TaskEvent[] = [];
   const newComment = next.commentCount > prev.commentCount;
+  // The latest change is yours (e.g. from another device): nothing to tell you.
+  const byMe = task.updatedById === userId;
+  const actor = task.updatedBy?.name ?? 'Someone';
 
   if (newComment && tagged) {
     events.push({ kind: 'assigned', text: `${last.author.name} mentioned you` });
   } else if (wasNewlyConnected(prev, next, userId)) {
-    events.push({ kind: 'assigned', text: 'You were added to this task' });
+    events.push({ kind: 'assigned', text: `${actor} added you to this task` });
   }
-  if (prev.status !== next.status) {
-    const kind = next.status === 'done' ? 'done' : next.status === 'closed' ? 'closed' : 'content';
-    events.push({ kind, text: `Status changed to ${STATUS_LABELS[next.status]}` });
+  if (prev.status !== next.status && !byMe) {
+    if (next.status === 'closed') {
+      events.push({ kind: 'closed', text: `${actor} closed this task` });
+    } else if (next.status === 'done') {
+      events.push({ kind: 'done', text: `${actor} marked this task Done` });
+    } else {
+      events.push({ kind: 'content', text: `${actor} changed status to ${STATUS_LABELS[next.status]}` });
+    }
   }
   if (newComment && !tagged) {
     events.push({ kind: 'content', text: last ? `New comment from ${last.author.name}` : 'New comment' });
   }
-  if (next.attachmentCount > prev.attachmentCount) {
-    events.push({ kind: 'content', text: 'New attachment' });
+  if (next.attachmentCount > prev.attachmentCount && !byMe) {
+    events.push({ kind: 'content', text: `${actor} added an attachment` });
   }
-  if (hasContentChange(prev, next)) {
-    events.push({ kind: 'content', text: 'Task details updated' });
+  if (hasContentChange(prev, next) && !byMe) {
+    events.push({ kind: 'content', text: `${actor} updated the task details` });
   }
   return events;
 }
