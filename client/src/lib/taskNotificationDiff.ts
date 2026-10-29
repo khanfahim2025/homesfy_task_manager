@@ -1,6 +1,6 @@
 import type { NotificationSound } from './notificationSounds';
 import type { Task, TaskStatus } from '../types';
-import { STATUS_LABELS } from './format';
+import { STATUS_LABELS, formatDueDateTime } from './format';
 import { mentionsUser } from './mentions';
 
 export interface TaskWatchSnapshot {
@@ -106,8 +106,7 @@ function hasContentChange(prev: TaskWatchSnapshot, next: TaskWatchSnapshot): boo
     next.description !== prev.description ||
     next.contentText !== prev.contentText ||
     next.contentUrls !== prev.contentUrls ||
-    next.priority !== prev.priority ||
-    next.dueDate !== prev.dueDate
+    next.priority !== prev.priority
   );
 }
 
@@ -176,6 +175,14 @@ export function detectTaskEvents(
   }
   if (newComment && !tagged) {
     events.push({ kind: 'content', text: last ? `New comment from ${last.author.name}` : 'New comment' });
+  }
+  if (next.dueDate !== prev.dueDate && !byMe) {
+    events.push({
+      kind: 'content',
+      text: next.dueDate
+        ? `${actor} changed the deadline to ${formatDueDateTime(next.dueDate)}`
+        : `${actor} removed the deadline`,
+    });
   }
   if (next.attachmentCount > prev.attachmentCount && !byMe) {
     events.push({ kind: 'content', text: `${actor} added an attachment` });
