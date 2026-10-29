@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
 import { AppError } from '../lib/errors';
-import { touchTask } from '../services/taskService';
+import { handleMentions, touchTask } from '../services/taskService';
 import { createCommentSchema } from '../validators/comment';
 import type { AuthedEnv } from '../types';
 
@@ -25,7 +25,9 @@ commentsRouter.post('/', async (c) => {
     data: { body, taskId, authorId: c.var.user.id },
     include: { author },
   });
+  const mentions = await handleMentions(c.var.db, c.env, taskId, body, c.var.user);
   await touchTask(c.var.db, taskId);
+  c.executionCtx.waitUntil(mentions.notify());
   return c.json({ comment }, 201);
 });
 

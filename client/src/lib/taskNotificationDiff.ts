@@ -1,6 +1,7 @@
 import type { NotificationSound } from './notificationSounds';
 import type { Task, TaskStatus } from '../types';
 import { STATUS_LABELS } from './format';
+import { mentionsUser } from './mentions';
 
 export interface TaskWatchSnapshot {
   status: TaskStatus;
@@ -142,20 +143,29 @@ export function detectTaskEvents(
   userId: string
 ): TaskEvent[] {
   if (!isUserInvolvedInTask(task, userId)) return [];
-  if (!prev) return [{ kind: 'created', text: 'New task' }];
+
+  const last = task.lastComment;
+  const tagged = last && last.authorId !== userId && mentionsUser(last.body, userId);
+  // Tagging someone adds them to the task, so for them it shows up as new.
+  if (!prev) {
+    return [tagged ? { kind: 'assigned', text: `${last.author.name} mentioned you` } : { kind: 'created', text: 'New task' }];
+  }
 
   const next = taskWatchSnapshot(task);
   const events: TaskEvent[] = [];
+  const newComment = next.commentCount > prev.commentCount;
 
-  if (wasNewlyConnected(prev, next, userId)) {
+  if (newComment && tagged) {
+    events.push({ kind: 'assigned', text: `${last.author.name} mentioned you` });
+  } else if (wasNewlyConnected(prev, next, userId)) {
     events.push({ kind: 'assigned', text: 'You were added to this task' });
   }
   if (prev.status !== next.status) {
     const kind = next.status === 'done' ? 'done' : next.status === 'closed' ? 'closed' : 'content';
     events.push({ kind, text: `Status changed to ${STATUS_LABELS[next.status]}` });
   }
-  if (next.commentCount > prev.commentCount) {
-    events.push({ kind: 'content', text: 'New comment' });
+  if (newComment && !tagged) {
+    events.push({ kind: 'content', text: last ? `New comment from ${last.author.name}` : 'New comment' });
   }
   if (next.attachmentCount > prev.attachmentCount) {
     events.push({ kind: 'content', text: 'New attachment' });

@@ -20,6 +20,8 @@ import { CopyButton } from '../components/CopyButton';
 import { UserChipList, UserMultiSelect } from '../components/UserMultiSelect';
 import { useAuth } from '../context/AuthContext';
 import { embedPreviewSrc } from '../lib/embedPreview';
+import { encodeMentions } from '../lib/mentions';
+import { CommentBody, MentionInput } from '../components/MentionInput';
 
 function statusButtonClass(status: TaskStatus, isActive: boolean, centered = false): string {
   const base = `w-full rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
@@ -64,6 +66,7 @@ export function TaskDetail() {
   const qc = useQueryClient();
   const { user } = useAuth();
   const [comment, setComment] = useState('');
+  const [mentioned, setMentioned] = useState<{ id: string; name: string }[]>([]);
   const [assigneeIds, setAssigneeIds] = useState<string[]>([]);
   const [observerIds, setObserverIds] = useState<string[]>([]);
   const [participantIds, setParticipantIds] = useState<string[]>([]);
@@ -98,9 +101,15 @@ export function TaskDetail() {
     mutationFn: (body: string) => api.addComment(id, body),
     onSuccess: () => {
       setComment('');
+      setMentioned([]);
       invalidate();
     },
   });
+  const submitComment = () => {
+    const text = comment.trim();
+    if (!text || commentMutation.isPending) return;
+    commentMutation.mutate(encodeMentions(text, mentioned));
+  };
   const uploadMutation = useMutation({
     mutationFn: (files: File[]) => api.uploadAttachments(id, files),
     onSuccess: () => {
@@ -307,7 +316,7 @@ export function TaskDetail() {
                       <span className="text-sm font-medium text-slate-800">{c.author.name}</span>
                       <span className="text-xs text-slate-400">{formatDateTime(c.createdAt)}</span>
                     </div>
-                    <p className="mt-1 whitespace-pre-wrap text-sm text-slate-700">{c.body}</p>
+                    <CommentBody body={c.body} currentUserId={user?.id} />
                   </div>
                 ))
               ) : (
@@ -316,17 +325,21 @@ export function TaskDetail() {
             </div>
 
             <form
-              className="mt-4 flex flex-col gap-2 sm:flex-row"
+              className="mt-4 flex flex-col gap-2 sm:flex-row sm:items-start"
               onSubmit={(e) => {
                 e.preventDefault();
-                if (comment.trim()) commentMutation.mutate(comment.trim());
+                submitComment();
               }}
             >
-              <input
-                className="input"
-                placeholder="Add a comment…"
+              <MentionInput
+                placeholder="Add a comment… type @ to tag someone"
                 value={comment}
-                onChange={(e) => setComment(e.target.value)}
+                onChange={setComment}
+                onMention={(u) =>
+                  setMentioned((prev) => (prev.some((p) => p.id === u.id) ? prev : [...prev, u]))
+                }
+                onSubmit={submitComment}
+                users={users.filter((u) => u.id !== user?.id)}
               />
               <button type="submit" className="btn-primary" disabled={commentMutation.isPending}>
                 Post

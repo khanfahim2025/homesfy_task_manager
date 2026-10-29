@@ -58,3 +58,12 @@ export function taskAssignedEmail(task: { title: string; dueDate: Date | null },
     { label: 'Open task', url }
   );
 }
+
+export function mentionEmail(taskTitle: string, by: string, comment: string, url: string) {
+  const excerpt = comment.length > 400 ? `${comment.slice(0, 400)}…` : comment;
+  return layout(
+    `${escapeHtml(by)} mentioned you`,
+    `<p>On <strong>${escapeHtml(taskTitle)}</strong>:</p><blockquote style="margin:0;padding:8px 12px;border-left:3px solid #ddd;color:#333;white-space:pre-wrap">${escapeHtml(excerpt)}</blockquote>`,
+    { label: 'Open task', url }
+  );
+}

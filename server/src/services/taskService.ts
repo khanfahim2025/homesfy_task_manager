@@ -1,7 +1,8 @@
 import type { Prisma, PrismaClient, User } from '../generated/prisma/client';
 import { AppError } from '../lib/errors';
 import { domainToProjectName, normalizeDomain } from '../lib/domain';
-import { sendEmail, taskAssignedEmail } from '../lib/email';
+import { mentionEmail, sendEmail, taskAssignedEmail } from '../lib/email';
+import { mentionedUserIds, plainCommentText } from '../lib/mentions';
 import type { Bindings } from '../types';
 
 const userMemberSelect = {
@@ -157,4 +158,62 @@ export async function notifyAssignees(
       })
     )
   );
+}
+
+/**
+ * Handles @tags in a new comment: tagged people who aren't on the task yet become
+ * participants (so they can open it), and everyone tagged gets an email.
+ */
+export async function handleMentions(
+  db: PrismaClient,
+  env: Bindings,
+  taskId: string,
+  body: string,
+  actor: User
+): Promise<{ notify: () => Promise<void> }> {
+  const ids = mentionedUserIds(body).filter((id) => id !== actor.id);
+  const none = { notify: async () => {} };
+  if (ids.length === 0) return none;
+
+  const [users, task] = await Promise.all([
+    db.user.findMany({ where: { id: { in: ids }, isActive: true }, select: { id: true, email: true } }),
+    db.task.findUniqueOrThrow({
+      where: { id: taskId },
+      select: {
+        title: true,
+        creatorId: true,
+        assigneeId: true,
+        assignees: { select: { user_id: true } },
+        observers: { select: { user_id: true } },
+        participants: { select: { user_id: true } },
+      },
+    }),
+  ]);
+  if (users.length === 0) return none;
+
+  const involved = new Set([
+    task.creatorId,
+    task.assigneeId,
+    ...task.assignees.map((r) => r.user_id),
+    ...task.observers.map((r) => r.user_id),
+    ...task.participants.map((r) => r.user_id),
+  ]);
+  const toAdd = users.filter((u) => !involved.has(u.id));
+  if (toAdd.length > 0) {
+    await db.task_participants.createMany({
+      data: toAdd.map((u) => ({ task_id: taskId, user_id: u.id })),
+    });
+  }
+
+  const url = `${env.APP_URL.replace(/\/$/, '')}/tasks/${taskId}`;
+  const html = mentionEmail(task.title, actor.name, plainCommentText(body), url);
+  return {
+    notify: async () => {
+      await Promise.all(
+        users.map((u) =>
+          sendEmail(env, { to: u.email, subject: `${actor.name} mentioned you on: ${task.title}`, html })
+        )
+      );
+    },
+  };
 }

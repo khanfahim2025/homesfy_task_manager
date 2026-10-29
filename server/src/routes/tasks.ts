@@ -83,10 +83,23 @@ tasksRouter.get('/', async (c) => {
   const query = taskQuerySchema.parse(c.req.query());
   const tasks = await c.var.db.task.findMany({
     where: buildTaskListWhere(c.var.user, query),
-    include: taskInclude,
+    include: {
+      ...taskInclude,
+      // Latest comment only, so the bell can say who commented or tagged you.
+      comments: {
+        take: 1,
+        orderBy: { createdAt: 'desc' },
+        select: { body: true, authorId: true, author: { select: { name: true } } },
+      },
+    },
     orderBy: { createdAt: 'desc' },
   });
-  return c.json({ tasks: tasks.map(serializeTask) });
+  return c.json({
+    tasks: tasks.map(({ comments, ...task }) => ({
+      ...serializeTask(task),
+      lastComment: comments[0] ?? null,
+    })),
+  });
 });
 
 tasksRouter.post('/', async (c) => {

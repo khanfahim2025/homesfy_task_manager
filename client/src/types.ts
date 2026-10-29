@@ -83,6 +83,8 @@ export interface Task {
   participants?: UserRef[];
   creator?: UserRef;
   comments?: Comment[];
+  /** Only on the task list: the newest comment. */
+  lastComment?: { body: string; authorId: string; author: { name: string } } | null;
   attachments?: Attachment[];
   _count?: { comments: number; attachments: number };
 }
