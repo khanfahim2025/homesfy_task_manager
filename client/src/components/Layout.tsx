@@ -3,7 +3,6 @@ import { NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom';
 import {
   ArrowRightOnRectangleIcon,
   Bars3Icon,
-  BellIcon,
   CheckCircleIcon,
   ChevronLeftIcon,
   ChevronRightIcon,
@@ -19,6 +18,7 @@ import { useAuth } from '../context/AuthContext';
 import { useTheme } from '../context/ThemeContext';
 import { getAvatarColor, getInitials } from '../lib/format';
 import { TaskNotificationWatcher } from './TaskNotificationWatcher';
+import { NotificationBell } from './NotificationBell';
 import { QuickTaskSearch } from './QuickTaskSearch';
 
 const SIDEBAR_COLLAPSED_KEY = 'homesfy:sidebarCollapsed';
@@ -214,13 +214,7 @@ export function Layout() {
             >
               <QuestionMarkCircleIcon className="h-5 w-5" />
             </button>
-            <button
-              type="button"
-              className="header-icon-btn relative hidden sm:inline-flex"
-              title="Notifications"
-            >
-              <BellIcon className="h-5 w-5" />
-            </button>
+            <NotificationBell />
             <button
               type="button"
               className="header-icon-btn"

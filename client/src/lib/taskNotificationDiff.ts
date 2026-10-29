@@ -1,5 +1,6 @@
 import type { NotificationSound } from './notificationSounds';
 import type { Task, TaskStatus } from '../types';
+import { STATUS_LABELS } from './format';
 
 export interface TaskWatchSnapshot {
   status: TaskStatus;
@@ -93,31 +94,36 @@ export function dueSoonStorageKey(task: Task): string | null {
   return `${task.id}:${task.dueDate}`;
 }
 
-function hasContentChange(prev: TaskWatchSnapshot, next: TaskWatchSnapshot): boolean {
-  if (next.commentCount > prev.commentCount) return true;
-  if (next.attachmentCount > prev.attachmentCount) return true;
-  if (next.title !== prev.title) return true;
-  if (next.description !== prev.description) return true;
-  if (next.contentText !== prev.contentText) return true;
-  if (next.contentUrls !== prev.contentUrls) return true;
-  if (next.priority !== prev.priority) return true;
-  return false;
+export interface TaskEvent {
+  kind: NotificationSound;
+  text: string;
 }
 
-export function detectDueSoonSounds(
+function hasContentChange(prev: TaskWatchSnapshot, next: TaskWatchSnapshot): boolean {
+  return (
+    next.title !== prev.title ||
+    next.description !== prev.description ||
+    next.contentText !== prev.contentText ||
+    next.contentUrls !== prev.contentUrls ||
+    next.priority !== prev.priority ||
+    next.dueDate !== prev.dueDate
+  );
+}
+
+export function detectDueSoonTasks(
   tasks: Task[],
   userId: string,
   alreadyNotified: Set<string>
-): NotificationSound[] {
-  const sounds: NotificationSound[] = [];
+): Task[] {
+  const due: Task[] = [];
   for (const task of tasks) {
     if (!isUserInvolvedInTask(task, userId) || !isTaskDueSoon(task)) continue;
     const key = dueSoonStorageKey(task);
     if (!key || alreadyNotified.has(key)) continue;
-    sounds.push('dueSoon');
+    due.push(task);
     alreadyNotified.add(key);
   }
-  return sounds;
+  return due;
 }
 
 const SOUND_PRIORITY: Record<NotificationSound, number> = {
@@ -129,35 +135,35 @@ const SOUND_PRIORITY: Record<NotificationSound, number> = {
   content: 5,
 };
 
-export function detectTaskNotificationSounds(
-  prev: TaskWatchSnapshot,
+/** What changed on a task since the last snapshot, for a user involved in it. */
+export function detectTaskEvents(
+  prev: TaskWatchSnapshot | undefined,
   task: Task,
   userId: string
-): NotificationSound[] {
+): TaskEvent[] {
   if (!isUserInvolvedInTask(task, userId)) return [];
+  if (!prev) return [{ kind: 'created', text: 'New task' }];
 
   const next = taskWatchSnapshot(task);
-  const sounds: NotificationSound[] = [];
+  const events: TaskEvent[] = [];
 
   if (wasNewlyConnected(prev, next, userId)) {
-    sounds.push('assigned');
+    events.push({ kind: 'assigned', text: 'You were added to this task' });
   }
-  if (prev.status !== 'done' && next.status === 'done') {
-    sounds.push('done');
+  if (prev.status !== next.status) {
+    const kind = next.status === 'done' ? 'done' : next.status === 'closed' ? 'closed' : 'content';
+    events.push({ kind, text: `Status changed to ${STATUS_LABELS[next.status]}` });
   }
-  if (prev.status !== 'closed' && next.status === 'closed') {
-    sounds.push('closed');
+  if (next.commentCount > prev.commentCount) {
+    events.push({ kind: 'content', text: 'New comment' });
+  }
+  if (next.attachmentCount > prev.attachmentCount) {
+    events.push({ kind: 'content', text: 'New attachment' });
   }
   if (hasContentChange(prev, next)) {
-    sounds.push('content');
+    events.push({ kind: 'content', text: 'Task details updated' });
   }
-
-  return sounds;
-}
-
-export function detectNewTaskSound(task: Task, userId: string): NotificationSound | null {
-  if (!isUserInvolvedInTask(task, userId)) return null;
-  return 'created';
+  return events;
 }
 
 export function sortNotificationSounds(sounds: NotificationSound[]): NotificationSound[] {

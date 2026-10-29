@@ -5,14 +5,14 @@ import { api } from '../api/client';
 import { areTaskNotificationsSuppressed } from '../lib/notificationSuppress';
 import {
   buildSnapshotMap,
-  detectDueSoonSounds,
-  detectNewTaskSound,
-  detectTaskNotificationSounds,
+  detectDueSoonTasks,
+  detectTaskEvents,
   sortNotificationSounds,
   type TaskWatchSnapshot,
 } from '../lib/taskNotificationDiff';
 import { playNotificationSounds, unlockNotificationAudio } from '../lib/notificationSounds';
 import type { NotificationSound } from '../lib/notificationSounds';
+import { addNotifications, loadNotifications, type AppNotification } from '../lib/notificationStore';
 
 const POLL_MS = 8_000;
 const DUE_SOON_CHECK_MS = 30_000;
@@ -36,6 +36,31 @@ function saveDueSoonNotified(keys: Set<string>): void {
   }
 }
 
+// The last seen task state is kept per user, so changes made while the app was
+// closed still show up in the bell on the next visit (without a sound).
+function snapshotKey(userId: string): string {
+  return `taskmanager:taskSnapshot:${userId}`;
+}
+
+function loadSnapshot(userId: string): Map<string, TaskWatchSnapshot> | null {
+  try {
+    const raw = localStorage.getItem(snapshotKey(userId));
+    return raw ? new Map(JSON.parse(raw) as [string, TaskWatchSnapshot][]) : null;
+  } catch {
+    return null;
+  }
+}
+
+function saveSnapshot(userId: string, snapshot: Map<string, TaskWatchSnapshot>): void {
+  try {
+    localStorage.setItem(snapshotKey(userId), JSON.stringify([...snapshot]));
+  } catch {
+    // ignore quota errors
+  }
+}
+
+type NewNotification = Omit<AppNotification, 'id' | 'read'>;
+
 export function useTaskNotifications(userId: string | undefined): void {
   const snapshotRef = useRef<Map<string, TaskWatchSnapshot> | null>(null);
   const readyRef = useRef(false);
@@ -45,8 +70,9 @@ export function useTaskNotifications(userId: string | undefined): void {
 
   useEffect(() => {
     const unlock = () => unlockNotificationAudio();
-    document.addEventListener('click', unlock, { once: true });
-    document.addEventListener('keydown', unlock, { once: true });
+    // Browsers only allow audio after a user gesture; keep retrying until one lands.
+    document.addEventListener('click', unlock);
+    document.addEventListener('keydown', unlock);
     return () => {
       document.removeEventListener('click', unlock);
       document.removeEventListener('keydown', unlock);
@@ -62,7 +88,11 @@ export function useTaskNotifications(userId: string | undefined): void {
     refetchIntervalInBackground: true,
   });
 
-  const { data: tasks = [] } = useQuery({
+  useEffect(() => {
+    if (userId) loadNotifications(userId);
+  }, [userId]);
+
+  const { data: tasks, isSuccess } = useQuery({
     queryKey: ['tasks', 'notifications'],
     queryFn: () => api.listTasks(),
     enabled: Boolean(userId),
@@ -79,7 +109,7 @@ export function useTaskNotifications(userId: string | undefined): void {
     }
   }, [version, qc]);
 
-  tasksRef.current = tasks;
+  tasksRef.current = tasks ?? [];
 
   useEffect(() => {
     if (!userId) return;
@@ -96,8 +126,10 @@ export function useTaskNotifications(userId: string | undefined): void {
     return unsub;
   }, [qc, userId]);
 
-  const playSounds = useCallback((sounds: NotificationSound[]) => {
-    const ordered = sortNotificationSounds(sounds);
+  const notify = useCallback((added: NewNotification[], withSound: boolean) => {
+    addNotifications(added);
+    if (!withSound) return;
+    const ordered = sortNotificationSounds(added.map((n) => n.kind));
     if (ordered.length > 0) {
       void playNotificationSounds(ordered);
     }
@@ -106,14 +138,21 @@ export function useTaskNotifications(userId: string | undefined): void {
   const checkDueSoon = useCallback(
     (taskList: Task[]) => {
       if (!userId || areTaskNotificationsSuppressed()) return;
-      const before = dueSoonNotifiedRef.current.size;
-      const sounds = detectDueSoonSounds(taskList, userId, dueSoonNotifiedRef.current);
-      if (dueSoonNotifiedRef.current.size !== before) {
-        saveDueSoonNotified(dueSoonNotifiedRef.current);
-      }
-      playSounds(sounds);
+      const due = detectDueSoonTasks(taskList, userId, dueSoonNotifiedRef.current);
+      if (due.length === 0) return;
+      saveDueSoonNotified(dueSoonNotifiedRef.current);
+      notify(
+        due.map((t) => ({
+          taskId: t.id,
+          taskTitle: t.title,
+          text: 'Due in 5 minutes',
+          kind: 'dueSoon' as NotificationSound,
+          at: Date.now(),
+        })),
+        true
+      );
     },
-    [userId, playSounds]
+    [userId, notify]
   );
 
   useEffect(() => {
@@ -123,37 +162,28 @@ export function useTaskNotifications(userId: string | undefined): void {
   }, [userId, checkDueSoon]);
 
   useEffect(() => {
-    if (!userId) return;
+    if (!userId || !isSuccess || !tasks) return;
 
     checkDueSoon(tasks);
 
     const current = buildSnapshotMap(tasks);
 
-    if (!readyRef.current) {
-      snapshotRef.current = current;
-      readyRef.current = true;
-      return;
-    }
-
-    if (areTaskNotificationsSuppressed()) {
-      snapshotRef.current = current;
-      return;
-    }
-
-    const previous = snapshotRef.current ?? current;
-    const sounds: NotificationSound[] = [];
-
-    for (const task of tasks) {
-      const prev = previous.get(task.id);
-      if (!prev) {
-        const created = detectNewTaskSound(task, userId);
-        if (created) sounds.push(created);
-        continue;
-      }
-      sounds.push(...detectTaskNotificationSounds(prev, task, userId));
-    }
-
+    // First load: compare against what was seen on the last visit, silently.
+    const firstLoad = !readyRef.current;
+    const previous = firstLoad ? loadSnapshot(userId) : snapshotRef.current;
+    readyRef.current = true;
     snapshotRef.current = current;
-    playSounds(sounds);
-  }, [tasks, userId, checkDueSoon, playSounds]);
+    saveSnapshot(userId, current);
+
+    if (!previous || areTaskNotificationsSuppressed()) return;
+
+    const now = Date.now();
+    const added: NewNotification[] = [];
+    for (const task of tasks) {
+      for (const event of detectTaskEvents(previous.get(task.id), task, userId)) {
+        added.push({ taskId: task.id, taskTitle: task.title, text: event.text, kind: event.kind, at: now });
+      }
+    }
+    notify(added, !firstLoad);
+  }, [tasks, isSuccess, userId, checkDueSoon, notify]);
 }
