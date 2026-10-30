@@ -112,7 +112,11 @@ attachmentFilesRouter.get('/files/:name{.+}', async (c) => {
   if (!attachment) throw new AppError(404, 'File not found', 'NOT_FOUND');
   await assertTaskAccess(c.var.db, c.var.user, attachment.taskId);
 
-  // Let the browser reuse the redirect while the presigned URL is still valid.
-  c.header('Cache-Control', `private, max-age=${DOWNLOAD_TTL_S - 300}`);
-  return c.redirect(await presignDownload(c.env, name, attachment.fileName), 302);
+  // ?download=1 saves the file instead of showing it. That redirect is never
+  // cached: S3 answers <img> loads without CORS headers, and a download that
+  // reused the same cached URL would get that copy and be blocked.
+  const download = c.req.query('download') !== undefined;
+  c.header('Cache-Control', download ? 'no-store' : `private, max-age=${DOWNLOAD_TTL_S - 300}`);
+  const disposition = download ? 'attachment' : 'inline';
+  return c.redirect(await presignDownload(c.env, name, attachment.fileName, disposition), 302);
 });

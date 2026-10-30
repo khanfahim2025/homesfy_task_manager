@@ -87,11 +87,18 @@ export function presignUpload(env: Bindings, name: string, contentType: string, 
   });
 }
 
-export function presignDownload(env: Bindings, name: string, fileName?: string | null) {
+export function presignDownload(
+  env: Bindings,
+  name: string,
+  fileName?: string | null,
+  disposition: 'inline' | 'attachment' = 'inline'
+) {
   const query: Record<string, string> = {};
   if (fileName) {
     query['response-content-disposition'] =
-      `inline; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+      `${disposition}; filename*=UTF-8''${encodeURIComponent(fileName)}`;
+  } else if (disposition === 'attachment') {
+    query['response-content-disposition'] = 'attachment';
   }
   return presign(env, name, 'GET', DOWNLOAD_TTL_S, undefined, query);
 }

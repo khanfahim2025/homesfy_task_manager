@@ -54,6 +54,8 @@ export function AttachmentThumbnailGrid({ attachments, onDelete, deletingId }: P
     setBulkDownloading(true);
     try {
       await downloadAttachments(items, zipName);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Download failed. Please try again.');
     } finally {
       setBulkDownloading(false);
     }
@@ -63,6 +65,8 @@ export function AttachmentThumbnailGrid({ attachments, onDelete, deletingId }: P
     setDownloadingId(attachment.id);
     try {
       await downloadAttachment(attachment);
+    } catch (err) {
+      alert(err instanceof Error ? err.message : 'Download failed. Please try again.');
     } finally {
       setDownloadingId(null);
     }

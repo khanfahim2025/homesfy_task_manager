@@ -33,9 +33,14 @@ function uniqueFileName(name: string, used: Set<string>): string {
   return candidate;
 }
 
+/** Our API redirects this to S3 with "save as" headers. */
+function downloadUrl(attachment: Attachment): string {
+  return `${attachment.fileUrl}${attachment.fileUrl.includes('?') ? '&' : '?'}download=1`;
+}
+
 async function fetchAttachmentBlob(attachment: Attachment): Promise<{ name: string; blob: Blob }> {
-  // Redirects to a presigned S3 URL; cookies only need to reach our own API.
-  const res = await fetch(attachment.fileUrl);
+  // no-store: never reuse a cached copy from an <img> load, which lacks CORS headers.
+  const res = await fetch(downloadUrl(attachment), { cache: 'no-store' });
   if (!res.ok) {
     throw new Error(`Download failed: ${attachment.fileName ?? attachment.id}`);
   }
@@ -46,9 +51,14 @@ async function fetchAttachmentBlob(attachment: Attachment): Promise<{ name: stri
   };
 }
 
+/** A single file is saved by the browser straight from S3, no CORS or memory needed. */
 export async function downloadAttachment(attachment: Attachment): Promise<void> {
-  const { blob, name } = await fetchAttachmentBlob(attachment);
-  triggerBlobDownload(blob, name);
+  const anchor = document.createElement('a');
+  anchor.href = downloadUrl(attachment);
+  anchor.rel = 'noopener';
+  document.body.appendChild(anchor);
+  anchor.click();
+  anchor.remove();
 }
 
 export async function downloadAttachmentsAsZip(
@@ -66,10 +76,17 @@ export async function downloadAttachmentsAsZip(
   const zip = new JSZip();
   const used = new Set<string>();
 
-  for (const attachment of attachments) {
-    const { blob, name } = await fetchAttachmentBlob(attachment);
-    zip.file(uniqueFileName(name, used), blob);
-  }
+  // Fetch a few at a time; names are assigned in order so duplicates stay stable.
+  const names = attachments.map((a) => uniqueFileName(a.fileName ?? 'download', used));
+  let next = 0;
+  const worker = async () => {
+    while (next < attachments.length) {
+      const i = next++;
+      const { blob } = await fetchAttachmentBlob(attachments[i]!);
+      zip.file(names[i]!, blob);
+    }
+  };
+  await Promise.all(Array.from({ length: Math.min(4, attachments.length) }, worker));
 
   const zipBlob = await zip.generateAsync({ type: 'blob' });
   triggerBlobDownload(zipBlob, zipName);
