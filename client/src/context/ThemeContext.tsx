@@ -14,19 +14,19 @@ interface ThemeState {
   toggleTheme: () => void;
 }
 
-const THEME_KEY = 'homesfy:theme';
+// v2: dark became the default, so earlier saved choices start over once.
+// index.html reads the same key before the app loads, to avoid a light flash.
+const THEME_KEY = 'homesfy:theme:v2';
 const ThemeContext = createContext<ThemeState | undefined>(undefined);
 
+/** Dark unless the person has switched to light. */
 function getInitialTheme(): Theme {
   try {
-    const saved = localStorage.getItem(THEME_KEY);
-    if (saved === 'light' || saved === 'dark') return saved;
+    if (localStorage.getItem(THEME_KEY) === 'light') return 'light';
   } catch {
     // ignore
   }
-
-  if (window.matchMedia?.('(prefers-color-scheme: dark)').matches) return 'dark';
-  return 'light';
+  return 'dark';
 }
 
 export function ThemeProvider({ children }: { children: ReactNode }) {

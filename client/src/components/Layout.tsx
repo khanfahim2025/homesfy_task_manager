@@ -113,7 +113,7 @@ export function Layout() {
           </div>
           <button
             type="button"
-            className="rounded-lg p-1.5 text-white/60 transition hover:bg-white/10 hover:text-white lg:hidden"
+            className="rounded-lg p-1.5 text-slate-500 transition hover:bg-slate-100 hover:text-slate-800 dark:text-white/60 dark:hover:bg-white/10 dark:hover:text-white lg:hidden"
             onClick={() => setMobileOpen(false)}
             aria-label="Close menu"
           >
@@ -127,12 +127,12 @@ export function Layout() {
           {user?.role === 'admin' &&
             sidebarLink('/admin/users', 'Team', UsersIcon, isAdminUsers)}
           {!collapsed && (
-            <div className="mt-5 rounded-xl border border-white/[0.08] bg-white/[0.04] p-3">
-              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-white/75">
+            <div className="mt-5 rounded-xl border border-slate-200 bg-slate-50 p-3 dark:border-white/[0.08] dark:bg-white/[0.04]">
+              <div className="mb-2 flex items-center gap-2 text-xs font-semibold text-slate-700 dark:text-white/75">
                 <Squares2X2Icon className="h-4 w-4 text-[#2fc6f6]" />
                 Workflows
               </div>
-              <div className="space-y-1 text-[11px] text-white/45">
+              <div className="space-y-1 text-[11px] text-slate-500 dark:text-white/45">
                 <p>Raise tickets</p>
                 <p>Assign owners</p>
                 <p>Track files, comments, due dates</p>
