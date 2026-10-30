@@ -20,6 +20,23 @@ function timeAgo(at: number): string {
   return new Date(at).toLocaleDateString(undefined, { day: 'numeric', month: 'short' });
 }
 
+interface Group {
+  key: string;
+  items: AppNotification[];
+}
+
+/** Back-to-back notifications with the same task and text show as one row with a count. */
+function groupNotifications(list: AppNotification[]): Group[] {
+  const groups: Group[] = [];
+  for (const n of list) {
+    const key = `${n.taskId}|${n.text}`;
+    const last = groups[groups.length - 1];
+    if (last?.key === key) last.items.push(n);
+    else groups.push({ key, items: [n] });
+  }
+  return groups;
+}
+
 export function NotificationBell() {
   const navigate = useNavigate();
   const notifications = useNotifications();
@@ -41,10 +58,10 @@ export function NotificationBell() {
     };
   }, [open]);
 
-  const openItem = (n: AppNotification) => {
-    markNotificationRead(n.id);
+  const openGroup = (group: Group) => {
+    group.items.forEach((n) => !n.read && markNotificationRead(n.id));
     setOpen(false);
-    navigate(`/tasks/${n.taskId}`);
+    navigate(`/tasks/${group.items[0]!.taskId}`);
   };
 
   return (
@@ -108,29 +125,43 @@ export function NotificationBell() {
             </p>
           ) : (
             <ul className="max-h-[60vh] overflow-y-auto">
-              {notifications.map((n) => (
-                <li key={n.id}>
-                  <button
-                    type="button"
-                    onClick={() => openItem(n)}
-                    className={`flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-slate-50 dark:hover:bg-white/5 ${
-                      n.read ? '' : 'bg-sky-50/60 dark:bg-white/[0.04]'
-                    }`}
-                  >
-                    <span
-                      className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${n.read ? 'bg-transparent' : 'bg-[#2fc6f6]'}`}
-                    />
-                    <span className="min-w-0 flex-1">
-                      <span className="block truncate text-sm font-medium text-slate-800 dark:text-slate-100">
-                        {n.taskTitle}
+              {groupNotifications(notifications).map((group) => {
+                const n = group.items[0]!;
+                const unreadInGroup = group.items.some((item) => !item.read);
+                return (
+                  <li key={n.id} className="border-b border-slate-100 last:border-b-0 dark:border-white/5">
+                    <button
+                      type="button"
+                      onClick={() => openGroup(group)}
+                      className={`flex w-full items-start gap-2.5 px-3 py-2.5 text-left transition hover:bg-slate-50 dark:hover:bg-white/5 ${
+                        unreadInGroup ? 'bg-sky-50/60 dark:bg-white/[0.04]' : ''
+                      }`}
+                    >
+                      <span
+                        className={`mt-1.5 h-2 w-2 shrink-0 rounded-full ${unreadInGroup ? 'bg-[#2fc6f6]' : 'bg-transparent'}`}
+                      />
+                      <span className="min-w-0 flex-1">
+                        <span className="block truncate text-sm font-medium text-slate-800 dark:text-slate-100">
+                          {n.taskTitle}
+                        </span>
+                        <span className="mt-0.5 flex items-baseline justify-between gap-2 text-xs text-slate-500 dark:text-slate-400">
+                          <span className="min-w-0 break-words">
+                            {n.text}
+                            {group.items.length > 1 && (
+                              <span className="ml-1 font-semibold text-slate-600 dark:text-slate-300">
+                                ×{group.items.length}
+                              </span>
+                            )}
+                          </span>
+                          <span className="shrink-0 whitespace-nowrap text-[11px] text-slate-400 dark:text-slate-500">
+                            {timeAgo(n.at)}
+                          </span>
+                        </span>
                       </span>
-                      <span className="block text-xs text-slate-500 dark:text-slate-400">
-                        {n.text} · {timeAgo(n.at)}
-                      </span>
-                    </span>
-                  </button>
-                </li>
-              ))}
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>

@@ -174,7 +174,7 @@ export function Layout() {
       </aside>
 
       <div className="flex min-w-0 flex-1 flex-col">
-        <header className="app-header z-10 flex h-14 shrink-0 items-center justify-between gap-2 px-3 backdrop-blur-xl sm:px-4 lg:px-6">
+        <header className="app-header relative z-20 flex h-14 shrink-0 items-center justify-between gap-2 px-3 backdrop-blur-xl sm:px-4 lg:px-6">
           <div className="flex min-w-0 items-center gap-1.5 sm:gap-2">
             <button
               type="button"
