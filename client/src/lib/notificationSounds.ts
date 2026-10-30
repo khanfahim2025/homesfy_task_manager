@@ -1,10 +1,31 @@
 let audioCtx: AudioContext | null = null;
+let master: AudioNode | null = null;
+
+/** Overall loudness. The limiter after it keeps loud peaks from distorting. */
+const MASTER_GAIN = 3;
 
 function ctx(): AudioContext | null {
   if (typeof window === 'undefined') return null;
   if (!audioCtx) audioCtx = new AudioContext();
   if (audioCtx.state === 'suspended') void audioCtx.resume();
   return audioCtx;
+}
+
+/** Every sound goes through boost -> limiter -> speakers. */
+function out(ac: AudioContext): AudioNode {
+  if (master) return master;
+  const boost = ac.createGain();
+  boost.gain.value = MASTER_GAIN;
+  const limiter = ac.createDynamicsCompressor();
+  limiter.threshold.value = -3;
+  limiter.knee.value = 0;
+  limiter.ratio.value = 20;
+  limiter.attack.value = 0.001;
+  limiter.release.value = 0.1;
+  boost.connect(limiter);
+  limiter.connect(ac.destination);
+  master = boost;
+  return master;
 }
 
 /** Call once after user interaction so sounds can play. */
@@ -29,24 +50,26 @@ function tone(
   gain.gain.setValueAtTime(volume, start);
   gain.gain.exponentialRampToValueAtTime(0.001, start + duration);
   osc.connect(gain);
-  gain.connect(ac.destination);
+  gain.connect(out(ac));
   osc.start(start);
   osc.stop(start + duration + 0.05);
 }
 
 export type NotificationSound = 'created' | 'content' | 'assigned' | 'dueSoon' | 'done' | 'closed';
 
-/** One soft marimba-like note: quick attack, short ring, a touch of overtone. */
-function pop(frequency: number, start: number, volume = 0.5): void {
+const POP_RING_S = 0.38;
+
+/** One bright marimba-like note: quick attack, a short ring, and overtones so it carries. */
+function pop(frequency: number, start: number, volume = 0.6): void {
   const ac = ctx();
   if (!ac) return;
   const gain = ac.createGain();
   gain.gain.setValueAtTime(0.0001, start);
-  gain.gain.exponentialRampToValueAtTime(volume, start + 0.008);
-  gain.gain.exponentialRampToValueAtTime(0.0001, start + 0.22);
-  gain.connect(ac.destination);
+  gain.gain.exponentialRampToValueAtTime(volume, start + 0.006);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + POP_RING_S);
+  gain.connect(out(ac));
 
-  for (const [mult, level] of [[1, 1], [2.76, 0.12]] as const) {
+  for (const [mult, level] of [[1, 1], [2, 0.3], [2.76, 0.2], [4, 0.08]] as const) {
     const osc = ac.createOscillator();
     const partial = ac.createGain();
     osc.type = 'sine';
@@ -56,7 +79,7 @@ function pop(frequency: number, start: number, volume = 0.5): void {
     osc.connect(partial);
     partial.connect(gain);
     osc.start(start);
-    osc.stop(start + 0.25);
+    osc.stop(start + POP_RING_S + 0.03);
   }
 }
 
@@ -74,9 +97,9 @@ function playDueSoonSound(): void {
   const ac = ctx();
   if (!ac) return;
   const t = ac.currentTime;
-  tone(880, t, 0.08, 0.28);
-  tone(880, t + 0.14, 0.08, 0.28);
-  tone(988, t + 0.28, 0.12, 0.25);
+  tone(880, t, 0.1, 0.5, 'triangle');
+  tone(880, t + 0.16, 0.1, 0.5, 'triangle');
+  tone(988, t + 0.32, 0.16, 0.5, 'triangle');
 }
 
 const PLAYERS: Record<NotificationSound, () => void> = {
