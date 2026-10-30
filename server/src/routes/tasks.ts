@@ -1,6 +1,8 @@
 import { Hono } from 'hono';
 import type { Prisma, User } from '../generated/prisma/client';
 import { parseLocationEmbed } from '../lib/locationEmbed';
+import { normalizeDomain } from '../lib/domain';
+import { AppError } from '../lib/errors';
 import { timestampsForStatusChange } from '../lib/taskTimestamps';
 import {
   assertTaskAccess,
@@ -163,14 +165,21 @@ tasksRouter.get('/:id', async (c) => {
   return c.json({ task: serializeTask(task) });
 });
 
+/** Anyone on a task may change these; everything else needs the admin or the creator. */
+const OPEN_FIELDS = new Set(['status', 'dueDate', 'assigneeId', 'assigneeIds', 'observerIds', 'participantIds']);
+
 tasksRouter.patch('/:id', async (c) => {
   const { db, user } = c.var;
   const id = c.req.param('id');
   const input = updateTaskSchema.parse(await c.req.json());
   const existing = await db.task.findUniqueOrThrow({
     where: { id },
-    include: { assignees: { select: { user_id: true } } },
+    include: { assignees: { select: { user_id: true } }, project: { select: { primaryDomain: true } } },
   });
+  const canEdit = user.role === 'admin' || existing.creatorId === user.id;
+  if (!canEdit && Object.keys(input).some((key) => !OPEN_FIELDS.has(key))) {
+    throw new AppError(403, 'Only an admin or the task creator can edit this task', 'FORBIDDEN');
+  }
 
   const data: Prisma.TaskUpdateInput = {
     ...buildMemberUpdateData(input),
@@ -184,13 +193,19 @@ tasksRouter.patch('/:id', async (c) => {
     data.effortPoints = input.effortPoints;
   }
   if (input.dueDate !== undefined) data.dueDate = input.dueDate ? new Date(input.dueDate) : null;
-  if (input.locationIframe !== undefined) data.locationIframe = parseLocationEmbed(input.locationIframe);
+  if ('locationIframe' in input) data.locationIframe = parseLocationEmbed(input.locationIframe);
   for (const field of TEXT_FIELDS) {
     if (field in input) data[field] = input[field] ?? null;
   }
   if (input.projectId) {
     const projectId = await resolveProjectId(db, user.id, input.projectId, input.domainName);
     data.project = { connect: { id: projectId } };
+  } else if (input.domainName) {
+    // A new domain moves the task to that site's project (created if needed).
+    const domain = normalizeDomain(input.domainName);
+    if (domain && domain !== existing.project.primaryDomain) {
+      data.project = { connect: { id: await resolveProjectId(db, user.id, null, domain) } };
+    }
   }
   if (input.status !== undefined && input.status !== existing.status) {
     data.status = input.status;

@@ -120,15 +120,7 @@ export function TaskCreateForm({
     });
   };
 
-  const setTeam = (team: Team) => {
-    setForm((f) => ({
-      ...f,
-      team,
-      assigneeIds: [],
-      observerIds: [],
-      participantIds: [],
-    }));
-  };
+  const setTeam = (team: Team) => set('team', team);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -145,11 +137,13 @@ export function TaskCreateForm({
         participantIds: form.participantIds ?? [],
       };
 
+      // Fields that don't apply to the task type: left out on create, cleared on edit.
+      const unused = isNew ? undefined : '';
       if (!isWebsiteCategory(form.category ?? 'website_development')) {
-        for (const key of WEBSITE_FIELDS) payload[key] = undefined;
+        for (const key of WEBSITE_FIELDS) payload[key] = unused;
       } else {
-        payload.contentText = undefined;
-        payload.contentUrls = undefined;
+        payload.contentText = unused;
+        payload.contentUrls = unused;
       }
 
       const taskId = savedTaskId.current ?? (await onSubmit(payload)).id;
@@ -367,7 +361,11 @@ export function TaskCreateForm({
           <PanelTitle
             icon={PaperClipIcon}
             title="Attachments"
-            description="Optional files, screenshots, videos, documents, or references."
+            description={
+              isNew
+                ? 'Optional files, screenshots, videos, documents, or references.'
+                : 'Add more files. Existing files can be managed on the task page.'
+            }
           />
           <PendingAttachmentPicker
             files={pendingFiles}
@@ -467,9 +465,13 @@ export function TaskCreateForm({
 
         <div className="card p-5">
           <div className="mb-4">
-            <h2 className="text-sm font-semibold text-slate-950">Ready to create?</h2>
+            <h2 className="text-sm font-semibold text-slate-950">
+              {isNew ? 'Ready to create?' : 'Save your changes?'}
+            </h2>
             <p className="mt-1 text-xs leading-relaxed text-slate-500">
-              The task will appear in the {TEAM_LABELS[selectedTeam]} queue immediately.
+              {isNew
+                ? `The task will appear in the ${TEAM_LABELS[selectedTeam]} queue immediately.`
+                : 'Everyone on the task is notified that you updated it.'}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-2">
@@ -477,11 +479,7 @@ export function TaskCreateForm({
               Cancel
             </button>
             <button type="submit" className="btn-primary" disabled={saving}>
-              {saving
-                ? pendingFiles.length > 0
-                  ? 'Creating…'
-                  : 'Saving…'
-                : submitText}
+              {saving ? (isNew && pendingFiles.length > 0 ? 'Creating…' : 'Saving…') : submitText}
             </button>
           </div>
         </div>

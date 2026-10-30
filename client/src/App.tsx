@@ -7,6 +7,7 @@ import { lazy, Suspense, type ReactNode } from 'react';
 
 // Less-visited pages load on demand to keep the first page load small.
 const TaskNew = lazy(() => import('./pages/TaskNew').then((m) => ({ default: m.TaskNew })));
+const TaskEdit = lazy(() => import('./pages/TaskEdit').then((m) => ({ default: m.TaskEdit })));
 const TaskDetail = lazy(() => import('./pages/TaskDetail').then((m) => ({ default: m.TaskDetail })));
 const AuthVerify = lazy(() => import('./pages/AuthVerify').then((m) => ({ default: m.AuthVerify })));
 const SetPassword = lazy(() => import('./pages/SetPassword').then((m) => ({ default: m.SetPassword })));
@@ -50,6 +51,7 @@ export default function App() {
             <Route path="/tasks" element={<Tasks />} />
             <Route path="/tasks/new" element={<TaskNew />} />
             <Route path="/tasks/:id" element={<TaskDetail />} />
+            <Route path="/tasks/:id/edit" element={<TaskEdit />} />
             <Route
               path="/admin/users"
               element={

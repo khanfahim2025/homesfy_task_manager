@@ -5,6 +5,7 @@ import {
   ArrowLeftIcon,
   ArrowPathIcon,
   CheckCircleIcon,
+  PencilSquareIcon,
   TrashIcon,
 } from '@heroicons/react/24/outline';
 import { api, ApiError } from '../api/client';
@@ -143,7 +144,8 @@ export function TaskDetail() {
   if (isLoading) return <div className="page-shell overflow-y-auto text-slate-500">Loading…</div>;
   if (!task) return <div className="page-shell overflow-y-auto text-slate-500">Task not found.</div>;
 
-  const canDelete = user?.role === 'admin' || user?.id === task.creatorId;
+  // The admin and the task's creator can edit and delete it.
+  const canEdit = user?.role === 'admin' || user?.id === task.creatorId;
   const assignees = task.assignees ?? (task.assignee ? [task.assignee] : []);
 
   return (
@@ -170,16 +172,22 @@ export function TaskDetail() {
                   </span>
                 </div>
               </div>
-              {canDelete && (
-                <button
-                  className="btn-danger"
-                  onClick={() => {
-                    if (confirm('Delete this task?')) deleteTaskMutation.mutate();
-                  }}
-                >
-                  <TrashIcon className="h-5 w-5" />
-                  Delete
-                </button>
+              {canEdit && (
+                <div className="flex shrink-0 items-center gap-2">
+                  <Link to={`/tasks/${id}/edit`} className="btn-secondary">
+                    <PencilSquareIcon className="h-5 w-5" />
+                    Edit
+                  </Link>
+                  <button
+                    className="btn-danger"
+                    onClick={() => {
+                      if (confirm('Delete this task?')) deleteTaskMutation.mutate();
+                    }}
+                  >
+                    <TrashIcon className="h-5 w-5" />
+                    Delete
+                  </button>
+                </div>
               )}
             </div>
 
