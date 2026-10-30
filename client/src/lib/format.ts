@@ -75,7 +75,7 @@ export const KANBAN_COLUMN_COLORS: Record<KanbanColumnId, string> = {
   assigned: 'bg-[#2fc6f6]',
   due: 'bg-[#1595c0]',
   done: 'bg-emerald-500',
-  closed: 'bg-[#121826]',
+  closed: 'bg-rose-600',
 };
 
 const AVATAR_COLORS = [

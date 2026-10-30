@@ -93,7 +93,7 @@ export function Layout() {
       )}
 
       <aside
-        className={`glass-sidebar fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col shadow-sidebar transition-[width,transform] duration-300 ease-in-out lg:static lg:z-20 lg:translate-x-0 ${
+        className={`glass-sidebar fixed inset-y-0 left-0 z-40 flex w-[260px] flex-col transition-[width,transform] duration-300 ease-in-out lg:static lg:z-20 lg:translate-x-0 ${
           mobileOpen ? 'translate-x-0' : '-translate-x-full'
         } ${collapsed ? 'lg:w-[72px]' : 'lg:w-[260px]'}`}
       >
