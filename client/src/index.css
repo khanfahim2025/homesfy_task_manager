@@ -21,7 +21,7 @@
   }
 
   body {
-    @apply bg-[#eef3f7] text-slate-800 antialiased;
+    @apply bg-[#eceef1] text-slate-800 antialiased;
   }
 
   .dark body {
@@ -46,9 +46,7 @@
 
 @layer components {
   .app-bg {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(240, 247, 250, 0.92)),
-      #eef3f7;
+    background: #eceef1;
   }
 
   .dark .app-bg {
