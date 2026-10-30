@@ -6,6 +6,6 @@ export default defineConfig({
   server: {
     port: 5173,
     // `wrangler dev` (npm run dev -w server) serves the API on 8787.
-    proxy: { '/api': { target: 'http://localhost:8787', changeOrigin: false } },
+    proxy: { '/api': { target: 'http://localhost:8787', changeOrigin: false, ws: true } },
   },
 });

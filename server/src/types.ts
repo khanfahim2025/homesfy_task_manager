@@ -1,7 +1,9 @@
 import type { PrismaClient, User } from './generated/prisma/client';
+import type { LiveUpdates } from './live';
 
 export interface Bindings {
   DB: D1Database;
+  LIVE: DurableObjectNamespace<LiveUpdates>;
   ASSETS: Fetcher;
 
   APP_URL: string;

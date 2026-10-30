@@ -8,7 +8,10 @@ import { usersRouter } from './routes/users';
 import { projectsRouter } from './routes/projects';
 import { tasksRouter } from './routes/tasks';
 import { attachmentFilesRouter } from './routes/attachments';
+import { connectLive, pushTasksVersion } from './live';
 import type { AppEnv, AuthedEnv } from './types';
+
+export { LiveUpdates } from './live';
 
 // Static client files are served by Workers Assets; only /api/* reaches this app.
 const app = new Hono<AppEnv>().basePath('/api');
@@ -20,6 +23,15 @@ app.route('/auth', authRouter);
 
 const authed = new Hono<AuthedEnv>();
 authed.use('*', requireAuth);
+// After any successful change, push the new task version to open browsers.
+authed.use('*', async (c, next) => {
+  await next();
+  if (c.req.method !== 'GET' && c.res.ok) c.executionCtx.waitUntil(pushTasksVersion(c.env));
+});
+authed.get('/live', (c) => {
+  if (c.req.header('Upgrade') !== 'websocket') throw new AppError(426, 'Expected a WebSocket', 'UPGRADE_REQUIRED');
+  return connectLive(c.env, c.req.raw);
+});
 authed.route('/users', usersRouter);
 authed.route('/projects', projectsRouter);
 authed.route('/tasks', tasksRouter);

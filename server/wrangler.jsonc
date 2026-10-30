@@ -25,6 +25,23 @@
 			"migrations_dir": "migrations"
 		}
 	],
+	// Pushes task changes to open browsers over WebSockets (src/live.ts).
+	"durable_objects": {
+		"bindings": [
+			{
+				"name": "LIVE",
+				"class_name": "LiveUpdates"
+			}
+		]
+	},
+	"migrations": [
+		{
+			"tag": "v1",
+			"new_sqlite_classes": [
+				"LiveUpdates"
+			]
+		}
+	],
 	// Non-secret settings. Secrets (SESSION_SECRET, AWS_ACCESS_KEY_ID,
 	// AWS_SECRET_ACCESS_KEY, RESEND_API_KEY) are set with `wrangler secret put`,
 	// or in .dev.vars for local development.

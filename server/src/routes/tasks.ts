@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import type { Prisma, User } from '../generated/prisma/client';
 import { parseLocationEmbed } from '../lib/locationEmbed';
 import { normalizeDomain } from '../lib/domain';
+import { readTasksVersion } from '../live';
 import { AppError } from '../lib/errors';
 import { timestampsForStatusChange } from '../lib/taskTimestamps';
 import {
@@ -76,12 +77,7 @@ tasksRouter.get('/points/leaderboard', async (c) => {
  * One row kept current by triggers (migration 0003); the list itself is still
  * filtered per user, so this counter reveals nothing about other people's tasks.
  */
-tasksRouter.get('/version', async (c) => {
-  const row = await c.env.DB.prepare(`SELECT "value" FROM "app_meta" WHERE "key" = 'tasks_version'`).first<{
-    value: number;
-  }>();
-  return c.json({ version: String(row?.value ?? 0) });
-});
+tasksRouter.get('/version', async (c) => c.json({ version: await readTasksVersion(c.env.DB) }));
 
 tasksRouter.get('/', async (c) => {
   const query = taskQuerySchema.parse(c.req.query());
