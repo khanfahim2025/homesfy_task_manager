@@ -71,14 +71,16 @@ tasksRouter.get('/points/leaderboard', async (c) => {
   return c.json({ leaderboard: await getLeaderboard(c.var.db, c.var.user, team) });
 });
 
-/** Cheap change marker the client polls instead of re-fetching every task. */
+/**
+ * Cheap change marker the client polls instead of re-fetching every task.
+ * One row kept current by triggers (migration 0003); the list itself is still
+ * filtered per user, so this counter reveals nothing about other people's tasks.
+ */
 tasksRouter.get('/version', async (c) => {
-  const agg = await c.var.db.task.aggregate({
-    where: visibleWhere(c.var.user),
-    _count: { _all: true },
-    _max: { updatedAt: true },
-  });
-  return c.json({ version: `${agg._count._all}:${agg._max.updatedAt?.getTime() ?? 0}` });
+  const row = await c.env.DB.prepare(`SELECT "value" FROM "app_meta" WHERE "key" = 'tasks_version'`).first<{
+    value: number;
+  }>();
+  return c.json({ version: String(row?.value ?? 0) });
 });
 
 tasksRouter.get('/', async (c) => {

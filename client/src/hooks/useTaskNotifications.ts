@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type { Task } from '../types';
 import { api } from '../api/client';
@@ -40,6 +40,46 @@ function saveSnapshot(userId: string, snapshot: Map<string, TaskWatchSnapshot>):
 
 type NewNotification = Omit<AppNotification, 'read'>;
 
+/**
+ * True in the one tab (per user, per browser) that holds the poll lock. The
+ * lock passes to another tab when this one closes. Browsers without Web Locks
+ * or BroadcastChannel make every tab a leader, as before.
+ */
+function usePollLeader(userId: string | undefined): boolean {
+  const [leader, setLeader] = useState(false);
+  useEffect(() => {
+    if (!userId) return;
+    if (!navigator.locks || typeof BroadcastChannel === 'undefined') {
+      setLeader(true);
+      return () => setLeader(false);
+    }
+    let release = () => {};
+    const held = new Promise<void>((resolve) => (release = resolve));
+    const abort = new AbortController();
+    navigator.locks
+      .request(`taskmanager:poll:${userId}`, { signal: abort.signal }, () => {
+        setLeader(true);
+        return held;
+      })
+      .catch(() => {});
+    return () => {
+      abort.abort();
+      release();
+      setLeader(false);
+    };
+  }, [userId]);
+  return leader;
+}
+
+function subscribeVisibility(cb: () => void): () => void {
+  document.addEventListener('visibilitychange', cb);
+  return () => document.removeEventListener('visibilitychange', cb);
+}
+
+function usePageVisible(): boolean {
+  return useSyncExternalStore(subscribeVisibility, () => document.visibilityState === 'visible');
+}
+
 export function useTaskNotifications(userId: string | undefined): void {
   const snapshotRef = useRef<Map<string, TaskWatchSnapshot> | null>(null);
   const readyRef = useRef(false);
@@ -58,11 +98,34 @@ export function useTaskNotifications(userId: string | undefined): void {
   }, []);
 
   // Poll a tiny version marker; only re-fetch the task list when it changes.
+  // One tab per browser polls in the background and shares what it gets; the
+  // tab on screen always polls too, so it never waits on a frozen background tab.
+  const isLeader = usePollLeader(userId);
+  const visible = usePageVisible();
+  const channelRef = useRef<BroadcastChannel | null>(null);
+
+  useEffect(() => {
+    if (!userId || typeof BroadcastChannel === 'undefined') return;
+    const channel = new BroadcastChannel(`taskmanager:version:${userId}`);
+    channel.onmessage = (e: MessageEvent) => {
+      if (typeof e.data === 'string') qc.setQueryData(['tasks-version'], e.data);
+    };
+    channelRef.current = channel;
+    return () => {
+      channel.close();
+      channelRef.current = null;
+    };
+  }, [userId, qc]);
+
   const { data: version } = useQuery({
     queryKey: ['tasks-version'],
-    queryFn: api.getTasksVersion,
+    queryFn: async () => {
+      const v = await api.getTasksVersion();
+      channelRef.current?.postMessage(v);
+      return v;
+    },
     enabled: Boolean(userId),
-    refetchInterval: POLL_MS,
+    refetchInterval: isLeader || visible ? POLL_MS : false,
     refetchIntervalInBackground: true,
   });
 

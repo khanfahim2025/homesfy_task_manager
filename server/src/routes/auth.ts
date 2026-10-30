@@ -3,6 +3,7 @@ import type { User } from '../generated/prisma/client';
 import { AppError } from '../lib/errors';
 import { hashPassword, verifyPassword } from '../lib/password';
 import { endSession, startSession } from '../lib/session';
+import { forgetCachedUser } from '../middleware/auth';
 import { consumeAuthToken, peekAuthToken } from '../lib/authTokens';
 import { loginSchema, setPasswordSchema } from '../validators/auth';
 import type { AppEnv } from '../types';
@@ -54,6 +55,7 @@ authRouter.post('/set-password', async (c) => {
     where: { id: user.id },
     data: { passwordHash: await hashPassword(password) },
   });
+  forgetCachedUser(updated.id);
   await startSession(c, updated.id);
   return c.json({ user: publicUser(updated) });
 });

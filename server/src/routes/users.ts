@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono';
 import { AppError } from '../lib/errors';
 import { createAuthToken } from '../lib/authTokens';
 import { inviteEmail, sendEmail } from '../lib/email';
-import { requireAdmin } from '../middleware/auth';
+import { forgetCachedUser, requireAdmin } from '../middleware/auth';
 import { createUserSchema, updateUserSchema } from '../validators/user';
 import type { AuthedEnv } from '../types';
 
@@ -93,5 +93,6 @@ usersRouter.post('/:id/login-link', async (c) => {
 usersRouter.patch('/:id', async (c) => {
   const data = updateUserSchema.parse(await c.req.json());
   const user = await c.var.db.user.update({ where: { id: c.req.param('id') }, data, select });
+  forgetCachedUser(user.id);
   return c.json({ user });
 });
