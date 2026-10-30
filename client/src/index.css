@@ -18,10 +18,18 @@
     --chatgpt-surface-soft: #161616;
     --chatgpt-border: rgba(255, 255, 255, 0.12);
     --chatgpt-muted: #b4b4b4;
+
+    /* Light mode layers: off-white page, a tray behind the board, white cards. */
+    --light-page: #f4f4f0;
+    --light-sidebar: #fafaf7;
+    --light-tray: #ebebe6;
+    --light-column: #f7f7f4;
+    --light-border: #e2e2dc;
   }
 
   body {
-    @apply bg-[#eef3f7] text-slate-800 antialiased;
+    @apply text-slate-800 antialiased;
+    background-color: var(--light-page);
   }
 
   .dark body {
@@ -46,9 +54,7 @@
 
 @layer components {
   .app-bg {
-    background:
-      linear-gradient(180deg, rgba(255, 255, 255, 0.84), rgba(240, 247, 250, 0.92)),
-      #eef3f7;
+    background: var(--light-page);
   }
 
   .dark .app-bg {
@@ -58,7 +64,9 @@
   }
 
   .app-header {
-    @apply border-b border-slate-200/70 bg-white/70;
+    @apply border-b;
+    background-color: rgba(244, 244, 240, 0.85);
+    border-color: var(--light-border);
   }
 
   .dark .app-header {
@@ -85,8 +93,8 @@
 
   /* Sidebar: light in light mode, near-black in dark mode. */
   .glass-sidebar {
-    background: #ffffff;
-    border-right: 1px solid rgb(226 232 240);
+    background: var(--light-sidebar);
+    border-right: 1px solid var(--light-border);
   }
 
   .dark .glass-sidebar {
@@ -249,7 +257,9 @@
   }
 
   .workspace-board {
-    @apply min-h-0 flex-1 rounded-lg border border-slate-200/80 bg-white/70 p-2.5 shadow-sm;
+    @apply min-h-0 flex-1 rounded-lg border p-2.5;
+    background-color: var(--light-tray);
+    border-color: var(--light-border);
   }
 
   .score-panel {
@@ -344,7 +354,9 @@
   }
 
   .kanban-column {
-    @apply flex w-[min(300px,88vw)] shrink-0 flex-col rounded-lg border border-slate-200/80 bg-white shadow-sm sm:w-[300px];
+    @apply flex w-[min(300px,88vw)] shrink-0 flex-col rounded-lg border shadow-sm sm:w-[300px];
+    background-color: var(--light-column);
+    border-color: var(--light-border);
   }
 
   .dark .kanban-column {
