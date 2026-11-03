@@ -20,7 +20,7 @@ import { CodeSnippet } from '../components/CodeSnippet';
 import { CopyButton } from '../components/CopyButton';
 import { UserChipList, UserMultiSelect } from '../components/UserMultiSelect';
 import { useAuth } from '../context/AuthContext';
-import { embedPreviewSrc } from '../lib/embedPreview';
+import { embedIframeHtml, embedPreviewSrc } from '../lib/embedPreview';
 import { encodeMentions } from '../lib/mentions';
 import { CommentBody, MentionInput } from '../components/MentionInput';
 
@@ -227,16 +227,17 @@ export function TaskDetail() {
               </dl>
               {task.locationIframe && (() => {
                 const previewSrc = embedPreviewSrc(task.locationIframe);
+                const iframeHtml = embedIframeHtml(task.locationIframe);
                 return (
                   <div className="mt-4 min-w-0">
                     <div className="flex items-center justify-between gap-2">
                       <span className="text-xs font-medium uppercase tracking-wide text-slate-400">
                         Location embed
                       </span>
-                      <CopyButton text={task.locationIframe} />
+                      <CopyButton text={iframeHtml} />
                     </div>
                     <div className="mt-1">
-                      <CodeSnippet>{task.locationIframe}</CodeSnippet>
+                      <CodeSnippet>{iframeHtml}</CodeSnippet>
                     </div>
                     {previewSrc && (
                       <div className="mt-3 min-w-0 overflow-hidden rounded-lg border border-slate-200">
