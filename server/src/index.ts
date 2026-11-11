@@ -1,8 +1,10 @@
 import { Hono } from 'hono';
+import { secureHeaders } from 'hono/secure-headers';
 import { ZodError } from 'zod';
 import { Prisma } from './generated/prisma/client';
 import { AppError } from './lib/errors';
 import { loadUser, requireAuth } from './middleware/auth';
+import { apiRateLimit } from './lib/rateLimit';
 import { authRouter } from './routes/auth';
 import { usersRouter } from './routes/users';
 import { projectsRouter } from './routes/projects';
@@ -16,7 +18,18 @@ export { LiveUpdates } from './live';
 // Static client files are served by Workers Assets; only /api/* reaches this app.
 const app = new Hono<AppEnv>().basePath('/api');
 
+// API responses are JSON only, so they can be locked down completely.
+const apiSecurityHeaders = secureHeaders({
+  contentSecurityPolicy: { defaultSrc: ["'none'"], frameAncestors: ["'none'"] },
+  crossOriginResourcePolicy: 'same-origin',
+  crossOriginOpenerPolicy: 'same-origin',
+  strictTransportSecurity: 'max-age=31536000; includeSubDomains',
+});
+// Skip the WebSocket upgrade: its 101 response comes from the Durable Object
+// and its headers can't be changed.
+app.use('*', (c, next) => (c.req.header('Upgrade') === 'websocket' ? next() : apiSecurityHeaders(c, next)));
 app.use('*', loadUser);
+app.use('*', apiRateLimit);
 
 app.get('/health', (c) => c.json({ ok: true, time: new Date().toISOString() }));
 app.route('/auth', authRouter);

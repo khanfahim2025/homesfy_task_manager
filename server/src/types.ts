@@ -5,6 +5,9 @@ export interface Bindings {
   DB: D1Database;
   LIVE: DurableObjectNamespace<LiveUpdates>;
   ASSETS: Fetcher;
+  /** Workers Rate Limiting bindings (see wrangler.jsonc). Optional so a missing binding never breaks the app. */
+  LOGIN_LIMITER?: RateLimit;
+  API_LIMITER?: RateLimit;
 
   APP_URL: string;
   ALLOWED_EMAIL_DOMAIN?: string;

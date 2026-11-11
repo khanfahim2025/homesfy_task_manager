@@ -249,6 +249,9 @@ export function TaskDetail() {
                           src={previewSrc}
                           className="h-64 w-full max-w-full"
                           loading="lazy"
+                          referrerPolicy="strict-origin-when-cross-origin"
+                          // The map runs in its own origin; it can't reach this page or navigate it.
+                          sandbox="allow-scripts allow-same-origin allow-popups allow-popups-to-escape-sandbox"
                         />
                       </div>
                     )}

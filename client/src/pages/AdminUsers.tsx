@@ -329,6 +329,21 @@ function UserRow({
     onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed'),
   });
 
+  const [signedOut, setSignedOut] = useState(false);
+  const signOutMutation = useMutation({
+    mutationFn: () => api.signOutUser(user.id),
+    onSuccess: () => {
+      setSignedOut(true);
+      setError(null);
+    },
+    onError: (err) => setError(err instanceof ApiError ? err.message : 'Failed'),
+  });
+
+  const signOutEverywhere = () => {
+    if (!window.confirm(`Sign ${user.name} out on every device? They will need to log in again.`)) return;
+    signOutMutation.mutate();
+  };
+
   const toggleActive = () => {
     const next = !active;
     if (!next && !window.confirm(`Deactivate ${user.name}? They will not be able to sign in.`)) {
@@ -410,6 +425,17 @@ function UserRow({
                 </option>
               ))}
             </select>
+            {active && (
+              <button
+                type="button"
+                className="admin-action-btn"
+                disabled={signOutMutation.isPending || signedOut}
+                onClick={signOutEverywhere}
+                title="End all of this user's sessions"
+              >
+                {signedOut ? 'Signed out' : 'Sign out everywhere'}
+              </button>
+            )}
             <button
               type="button"
               className={`admin-action-btn ${active ? 'text-red-600 hover:border-red-200 hover:bg-red-50 hover:text-red-700' : ''}`}

@@ -2,7 +2,7 @@ import { createMiddleware } from 'hono/factory';
 import type { User } from '../generated/prisma/client';
 import { AppError } from '../lib/errors';
 import { getDb } from '../lib/db';
-import { readSession } from '../lib/session';
+import { endSession, readSession } from '../lib/session';
 import type { AppEnv } from '../types';
 
 /**
@@ -21,8 +21,9 @@ export function forgetCachedUser(id: string): void {
 export const loadUser = createMiddleware<AppEnv>(async (c, next) => {
   const db = getDb(c.env.DB);
   c.set('db', db);
-  const userId = await readSession(c);
-  if (userId) {
+  const session = await readSession(c);
+  const userId = session?.userId;
+  if (session && userId) {
     let cached = userCache.get(userId);
     if (!cached || Date.now() - cached.at > USER_TTL_MS) {
       const user = await db.user.findUnique({ where: { id: userId } });
@@ -30,7 +31,12 @@ export const loadUser = createMiddleware<AppEnv>(async (c, next) => {
       if (cached) userCache.set(userId, cached);
       else userCache.delete(userId);
     }
-    if (cached?.user.isActive) c.set('user', cached.user);
+    if (cached?.user.isActive && cached.user.sessionVersion === session.sessionVersion) {
+      c.set('user', cached.user);
+    } else {
+      // Signed out remotely, deactivated, or deleted: drop the stale cookie.
+      endSession(c);
+    }
   }
   await next();
 });

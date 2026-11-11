@@ -16,7 +16,7 @@ projectsRouter.get('/', async (c) => {
   return c.json({ projects });
 });
 
-projectsRouter.post('/', async (c) => {
+projectsRouter.post('/', requireAdmin, async (c) => {
   const input = createProjectSchema.parse(await c.req.json());
   const project = await c.var.db.project.create({
     data: {
@@ -35,7 +35,7 @@ projectsRouter.get('/:id', async (c) => {
   return c.json({ project });
 });
 
-projectsRouter.patch('/:id', async (c) => {
+projectsRouter.patch('/:id', requireAdmin, async (c) => {
   const input = updateProjectSchema.parse(await c.req.json());
   const project = await c.var.db.project.update({
     where: { id: c.req.param('id') },

@@ -18,6 +18,8 @@ model User {
   isActive     Boolean  @default(true) @map("is_active")
   createdAt    DateTime @default(now()) @map("created_at")
   passwordHash String?  @map("password_hash")
+  /// Bumped to sign the user out everywhere: cookies carrying an older value stop working.
+  sessionVersion Int    @default(0) @map("session_version")
 
   attachments            Attachment[]
   comments               Comment[]

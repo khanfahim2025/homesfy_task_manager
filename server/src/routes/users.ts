@@ -91,8 +91,21 @@ usersRouter.post('/:id/login-link', async (c) => {
 });
 
 usersRouter.patch('/:id', async (c) => {
-  const data = updateUserSchema.parse(await c.req.json());
+  const input = updateUserSchema.parse(await c.req.json());
+  // Deactivating also ends every session the user has open.
+  const data = input.isActive === false ? { ...input, sessionVersion: { increment: 1 } } : input;
   const user = await c.var.db.user.update({ where: { id: c.req.param('id') }, data, select });
   forgetCachedUser(user.id);
   return c.json({ user });
+});
+
+/** Signs the user out on every device (their existing cookies stop working). */
+usersRouter.post('/:id/sign-out', async (c) => {
+  const user = await c.var.db.user.update({
+    where: { id: c.req.param('id') },
+    data: { sessionVersion: { increment: 1 } },
+    select: { id: true },
+  });
+  forgetCachedUser(user.id);
+  return c.json({ ok: true });
 });

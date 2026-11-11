@@ -97,6 +97,7 @@ export const api = {
       method: 'PATCH',
       body: JSON.stringify(input),
     }).then((r) => r.user),
+  signOutUser: (id: string) => request<{ ok: true }>(`/users/${id}/sign-out`, { method: 'POST' }),
   createInviteLink: (id: string) =>
     request<{ url: string }>(`/users/${id}/invite-link`, { method: 'POST' }),
   createLoginLink: (id: string) =>

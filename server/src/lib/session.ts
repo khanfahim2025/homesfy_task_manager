@@ -10,6 +10,13 @@ const REFRESH_AFTER_S = 60 * 60 * 24;
 interface Payload {
   uid: string;
   iat: number;
+  /** User's sessionVersion when the cookie was issued (absent on older cookies = 0). */
+  sv?: number;
+}
+
+export interface Session {
+  userId: string;
+  sessionVersion: number;
 }
 
 const encoder = new TextEncoder();
@@ -71,8 +78,12 @@ function now(): number {
   return Math.floor(Date.now() / 1000);
 }
 
-export async function startSession(c: Context<AppEnv>, userId: string): Promise<void> {
-  setCookie(c, COOKIE, await sign({ uid: userId, iat: now() }, c.env.SESSION_SECRET), {
+export async function startSession(
+  c: Context<AppEnv>,
+  user: { id: string; sessionVersion: number }
+): Promise<void> {
+  const payload: Payload = { uid: user.id, iat: now(), sv: user.sessionVersion };
+  setCookie(c, COOKIE, await sign(payload, c.env.SESSION_SECRET), {
     httpOnly: true,
     sameSite: 'Lax',
     secure: new URL(c.req.url).protocol === 'https:',
@@ -85,12 +96,16 @@ export function endSession(c: Context<AppEnv>): void {
   deleteCookie(c, COOKIE, { path: '/' });
 }
 
-/** Returns the signed-in user id, refreshing the cookie when it is getting old. */
-export async function readSession(c: Context<AppEnv>): Promise<string | null> {
+/**
+ * Returns the cookie's session, refreshing the cookie when it is getting old.
+ * The caller must still check sessionVersion against the user's current value.
+ */
+export async function readSession(c: Context<AppEnv>): Promise<Session | null> {
   const token = getCookie(c, COOKIE);
   if (!token) return null;
   const payload = await verify(token, c.env.SESSION_SECRET);
   if (!payload) return null;
-  if (now() - payload.iat > REFRESH_AFTER_S) await startSession(c, payload.uid);
-  return payload.uid;
+  const session = { userId: payload.uid, sessionVersion: payload.sv ?? 0 };
+  if (now() - payload.iat > REFRESH_AFTER_S) await startSession(c, { id: session.userId, sessionVersion: session.sessionVersion });
+  return session;
 }
