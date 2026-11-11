@@ -23,6 +23,7 @@ import { useAuth } from '../context/AuthContext';
 import { embedIframeHtml, embedPreviewSrc } from '../lib/embedPreview';
 import { encodeMentions } from '../lib/mentions';
 import { CommentBody, MentionInput } from '../components/MentionInput';
+import { Linkify } from '../components/Linkify';
 
 function statusButtonClass(status: TaskStatus, isActive: boolean, centered = false): string {
   const base = `w-full rounded-lg px-3 py-2 text-xs font-semibold uppercase tracking-wide transition ${
@@ -192,7 +193,9 @@ export function TaskDetail() {
             </div>
 
             {task.description && (
-              <p className="mt-4 whitespace-pre-wrap text-slate-700">{task.description}</p>
+              <p className="mt-4 whitespace-pre-wrap break-words text-slate-700 [overflow-wrap:anywhere]">
+                <Linkify text={task.description} />
+              </p>
             )}
           </div>
 
@@ -275,12 +278,16 @@ export function TaskDetail() {
               <dl className="grid min-w-0 gap-4">
                 {task.contentText && (
                   <Field label="Brief" copyText={task.contentText}>
-                    <p className="whitespace-pre-wrap text-slate-700">{task.contentText}</p>
+                    <p className="whitespace-pre-wrap break-words text-slate-700 [overflow-wrap:anywhere]">
+                      <Linkify text={task.contentText} />
+                    </p>
                   </Field>
                 )}
                 {task.contentUrls && (
                   <Field label="Reference URLs" copyText={task.contentUrls}>
-                    <p className="whitespace-pre-wrap break-words text-slate-700">{task.contentUrls}</p>
+                    <p className="whitespace-pre-wrap break-words text-slate-700 [overflow-wrap:anywhere]">
+                      <Linkify text={task.contentUrls} />
+                    </p>
                   </Field>
                 )}
               </dl>

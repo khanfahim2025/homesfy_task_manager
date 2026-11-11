@@ -2,6 +2,7 @@ import { useMemo, useRef, useState, type KeyboardEvent, type ReactNode } from 'r
 import type { User } from '../types';
 import { getAvatarColor, getInitials } from '../lib/format';
 import { MENTION_RE } from '../lib/mentions';
+import { linkify } from './Linkify';
 
 interface Props {
   value: string;
@@ -136,7 +137,7 @@ export function CommentBody({ body, currentUserId }: { body: string; currentUser
   let last = 0;
   for (const m of body.matchAll(MENTION_RE)) {
     const index = m.index ?? 0;
-    if (index > last) parts.push(body.slice(last, index));
+    if (index > last) parts.push(...linkify(body.slice(last, index), `t${last}`));
     const isMe = m[2] === currentUserId;
     parts.push(
       <span
@@ -152,6 +153,6 @@ export function CommentBody({ body, currentUserId }: { body: string; currentUser
     );
     last = index + m[0].length;
   }
-  if (last < body.length) parts.push(body.slice(last));
-  return <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700">{parts}</p>;
+  if (last < body.length) parts.push(...linkify(body.slice(last), `t${last}`));
+  return <p className="mt-1 whitespace-pre-wrap break-words text-sm text-slate-700 [overflow-wrap:anywhere]">{parts}</p>;
 }
