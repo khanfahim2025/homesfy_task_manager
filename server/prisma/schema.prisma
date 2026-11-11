@@ -228,6 +228,7 @@ enum AttachmentType {
 
 enum TaskCategory {
   general
+  mis
   website_development
   creative
   content_creation

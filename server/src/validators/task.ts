@@ -2,7 +2,7 @@ import { z } from 'zod';
 
 export const TASK_STATUSES = ['new', 'assigned', 'accepted', 'in_progress', 'done', 'closed'] as const;
 export const TASK_PRIORITIES = ['low', 'medium', 'high'] as const;
-export const TASK_CATEGORIES = ['general', 'website_development', 'creative', 'content_creation'] as const;
+export const TASK_CATEGORIES = ['general', 'mis', 'website_development', 'creative', 'content_creation'] as const;
 export const TEAMS = ['tech', 'digital'] as const;
 
 const status = z.enum(TASK_STATUSES);

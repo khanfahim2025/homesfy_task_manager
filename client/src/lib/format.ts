@@ -45,6 +45,7 @@ export const PRIORITY_LABELS: Record<TaskPriority, string> = {
 
 export const CATEGORY_LABELS: Record<TaskCategory, string> = {
   general: 'General Task',
+  mis: 'MIS Task',
   website_development: 'Website Development',
   creative: 'Creative',
   content_creation: 'Content Creation',

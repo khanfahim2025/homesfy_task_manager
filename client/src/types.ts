@@ -2,7 +2,7 @@ export type Role = 'admin' | 'manager' | 'member';
 export type Team = 'tech' | 'digital';
 export type TaskStatus = 'new' | 'assigned' | 'accepted' | 'in_progress' | 'done' | 'closed';
 export type TaskPriority = 'low' | 'medium' | 'high';
-export type TaskCategory = 'general' | 'website_development' | 'creative' | 'content_creation';
+export type TaskCategory = 'general' | 'mis' | 'website_development' | 'creative' | 'content_creation';
 export type AttachmentType = 'image' | 'document' | 'link' | 'video' | 'archive';
 
 export interface User {
